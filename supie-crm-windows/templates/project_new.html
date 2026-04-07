@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="crm-page-head">
+  <div class="crm-page-head-main">
+    <h4 class="crm-page-title">新建项目</h4>
+    <div class="crm-page-subtitle">录入客户、阶段和时间计划，创建新的交付项目。</div>
+  </div>
+  <div class="crm-page-actions">
+    <a class="btn btn-light" href="{{ url_for('project_manage') }}">返回</a>
+  </div>
+</div>
+
+<div class="modern-card crm-content-card page-section">
+  <div class="card-body">
+    <form method="post" class="row g-3">
+      <div class="col-md-6">
+        <label class="form-label">所属客户</label>
+        <select name="customer_id" class="form-select" required>
+          <option value="">请选择客户...</option>
+          {% for c in customers %}
+          <option value="{{ c.id }}">{{ c.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-6">
+        <label class="form-label">项目名称</label>
+        <input name="name" class="form-control" required>
+      </div>
+      <div class="col-md-3">
+        <label class="form-label">项目类型</label>
+        <select name="project_type" class="form-select" required>
+          <option value="">请选择...</option>
+          <option value="integration">集成类</option>
+          <option value="development">开发类</option>
+          <option value="implementation">实施类</option>
+        </select>
+      </div>
+      <div class="col-md-3">
+        <label class="form-label">项目经理</label>
+        <div class="crm-person-picker" data-source-url="{{ url_for('api_users_pm_search') }}">
+          <input type="hidden" name="manager_user_id" class="crm-person-picker-id" value="">
+          <input type="hidden" name="manager" class="crm-person-picker-value" value="">
+          <div class="position-relative">
+            <input type="text" class="form-control crm-person-picker-input" placeholder="输入姓名或账号搜索项目经理" autocomplete="off" required>
+            <div class="list-group shadow-sm crm-person-picker-dropdown d-none"></div>
+          </div>
+        </div>
+      </div>
+      <div class="col-md-3">
+        <label class="form-label">状态</label>
+        <select name="status" class="form-select">
+          <option value="not_started">未开始</option>
+          <option value="in_progress" selected>进行中</option>
+          <option value="closed">已完成</option>
+          <option value="blocked">项目暂停</option>
+        </select>
+      </div>
+      <div class="col-md-3">
+        <label class="form-label">当前阶段</label>
+        <select name="current_stage" class="form-select">
+          <option value="init" selected>立项</option>
+          <option value="requirement">需求分析</option>
+          <option value="design">方案设计</option>
+          <option value="delivery">执行交付</option>
+          <option value="acceptance">验收回款</option>
+          <option value="closed">结项</option>
+        </select>
+      </div>
+      <div class="col-md-3">
+        <label class="form-label">开始日期</label>
+        <input type="date" name="start_date" class="form-control">
+      </div>
+      <div class="col-md-3">
+        <label class="form-label">结束日期</label>
+        <input type="date" name="end_date" class="form-control">
+      </div>
+      <div class="col-12">
+        <label class="form-label">项目说明</label>
+        <textarea name="description" rows="4" class="form-control"></textarea>
+      </div>
+      <div class="col-12">
+        <button class="btn btn-primary">创建项目</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

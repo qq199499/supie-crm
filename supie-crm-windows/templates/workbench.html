@@ -1,0 +1,318 @@
+{% extends "base.html" %}
+
+{% block content %}
+{% set kpi_count = cards|length if cards else 0 %}
+{% set todo_count = todo_items|length if todo_items else 0 %}
+{% set attention_count = attention_items|length if attention_items else 0 %}
+{% set primary_card = cards[0] if cards and cards|length > 0 else none %}
+{% set secondary_card = cards[1] if cards and cards|length > 1 else none %}
+
+<section class="modern-card crm-workbench-hero mb-4">
+  <div class="crm-workbench-hero-top">
+    <div>
+      <div class="crm-section-kicker">经营节奏视角</div>
+      <h4 class="crm-page-title mb-2">工作台</h4>
+      <p class="crm-page-subtitle mb-0">你好，{{ current_user or "—" }}</p>
+    </div>
+  </div>
+
+  <div class="crm-workbench-summary-grid">
+    <div class="crm-workbench-summary-card">
+      <div class="crm-workbench-summary-label">待办总量</div>
+      <div class="crm-workbench-summary-value">{{ todo_count }}</div>
+    </div>
+    <div class="crm-workbench-summary-card">
+      <div class="crm-workbench-summary-label">需关注事项</div>
+      <div class="crm-workbench-summary-value">{{ attention_count }}</div>
+    </div>
+    <div class="crm-workbench-summary-card">
+      <div class="crm-workbench-summary-label">{{ primary_card.title if primary_card else "指标覆盖" }}</div>
+      <div class="crm-workbench-summary-value">{{ primary_card.value if primary_card else kpi_count }}</div>
+    </div>
+    <div class="crm-workbench-summary-card">
+      <div class="crm-workbench-summary-label">{{ secondary_card.title if secondary_card else "角色状态" }}</div>
+      <div class="crm-workbench-summary-value">{{ secondary_card.value if secondary_card else "—" }}</div>
+    </div>
+  </div>
+</section>
+
+<div class="crm-workbench-rhythm-layout">
+  <section class="modern-card crm-workbench-panel crm-workbench-rhythm-card mb-4 mb-xl-0">
+    <div class="crm-section-head crm-workbench-section-head">
+      <div class="crm-section-head-main">
+        <div class="crm-section-kicker">今日节奏</div>
+        <h5 class="crm-section-title">让动态直接解释行动顺序</h5>
+      </div>
+    </div>
+
+    {% if dynamics %}
+    <div class="crm-workbench-timeline">
+      {% for update in dynamics[:4] %}
+      <div class="crm-workbench-timeline-item {% if loop.first %}is-emphasis{% endif %}">
+        <div class="crm-workbench-timeline-time">{{ update.created_at or "刚刚" }}</div>
+        <div class="crm-workbench-timeline-card">
+          <h6>{{ update.source or "系统动态" }}</h6>
+          <p>{{ update.content }}</p>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    {% elif attention_items %}
+    <div class="crm-workbench-timeline">
+      {% for a in attention_items[:4] %}
+      <div class="crm-workbench-timeline-item {% if loop.first %}is-emphasis{% endif %}">
+        <div class="crm-workbench-timeline-time">{{ a.due_at or "待处理" }}</div>
+        <div class="crm-workbench-timeline-card {% if '风险' in a.item_type %}is-danger{% elif '延期' in a.item_type %}is-warning{% endif %}">
+          <h6>{{ a.project_name or a.item_type }}</h6>
+          <p>{{ a.item_name }}</p>
+          {% if a.link %}
+          <a class="crm-workbench-inline-link" href="{{ a.link }}">查看详情</a>
+          {% endif %}
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    {% elif todo_items %}
+    <div class="crm-workbench-timeline">
+      {% for item in todo_items[:4] %}
+      <div class="crm-workbench-timeline-item {% if loop.first %}is-emphasis{% endif %}">
+        <div class="crm-workbench-timeline-time">{{ item.due_at or "待处理" }}</div>
+        <div class="crm-workbench-timeline-card">
+          {% if item.item_link %}
+          <h6><a href="{{ item.item_link }}" class="text-main text-decoration-none">{{ item.item_type or "待办事项" }}</a></h6>
+          {% else %}
+          <h6>{{ item.item_type or "待办事项" }}</h6>
+          {% endif %}
+          <p>{{ item.item_name }}</p>
+          {% if item.item_link %}
+          <a class="crm-workbench-inline-link" href="{{ item.item_link }}">查看详情</a>
+          {% endif %}
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <div class="crm-empty-state">
+      <i class="bi bi-activity crm-empty-icon"></i>
+      <div class="crm-empty-title">暂无节奏变化</div>
+      <div class="crm-empty-copy">当前没有新的经营动态、风险或待办变化，系统会在出现新信号时自动同步。</div>
+    </div>
+    {% endif %}
+  </section>
+
+  <div class="crm-workbench-side-stack">
+    <section class="modern-card crm-workbench-panel crm-workbench-queue-card mb-4">
+      <div class="crm-section-head crm-workbench-section-head">
+        <div class="crm-section-head-main">
+          <div class="crm-section-kicker">关键队列</div>
+          <h5 class="crm-section-title">今天必须收口的事项</h5>
+        </div>
+        <div class="crm-page-chip">{{ todo_count }} 项</div>
+      </div>
+
+      {% if todo_items %}
+      <div class="crm-workbench-queue-list">
+        {% for item in todo_items[:3] %}
+        <div class="crm-workbench-queue-item">
+          <div class="d-flex align-items-start justify-content-between gap-3">
+            <div class="flex-grow-1">
+              <div class="d-flex align-items-center flex-wrap gap-2">
+                {% if '停滞' in item.item_type or '临近' in item.item_type or '回款' in item.item_type or '逾期' in item.item_type or '审批' in item.item_type %}
+                <span class="status-pill status-warning">{{ item.item_type }}</span>
+                {% elif '客户' in item.item_type or '跟进' in item.item_type %}
+                <span class="status-pill status-primary">{{ item.item_type }}</span>
+                {% else %}
+                <span class="status-pill status-muted">{{ item.item_type or "待办" }}</span>
+                {% endif %}
+                {% if item.item_link %}
+                <h6 class="mb-0"><a href="{{ item.item_link }}" class="text-main text-decoration-none">{{ item.item_name }}</a></h6>
+                {% else %}
+                <h6 class="mb-0">{{ item.item_name }}</h6>
+                {% endif %}
+              </div>
+              <div class="crm-workbench-meta-row">
+                <span><i class="bi bi-clock me-1"></i>{{ item.due_at or "时间待补充" }}</span>
+              </div>
+            </div>
+            {% if item.item_link %}
+            <a class="btn btn-sm btn-outline-primary rounded-pill" href="{{ item.item_link }}">查看详情</a>
+            {% endif %}
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+      {% else %}
+      <div class="crm-empty-state">
+        <i class="bi bi-inbox crm-empty-icon"></i>
+        <div class="crm-empty-title">暂无关键队列</div>
+        <div class="crm-empty-copy">当前没有需要立刻收口的待办事项，可以转向查看经营动态和关注项。</div>
+      </div>
+      {% endif %}
+    </section>
+
+    <section class="modern-card crm-workbench-panel crm-workbench-focus-card">
+      <div class="crm-section-head crm-workbench-section-head">
+        <div class="crm-section-head-main">
+          <div class="crm-section-kicker">关注与态势</div>
+          <h5 class="crm-section-title">不要只有风险，也要看当前经营指标</h5>
+        </div>
+      </div>
+
+      <div class="crm-workbench-focus-block">
+        <div class="crm-workbench-focus-title">需关注事项</div>
+        {% if attention_items %}
+        <div class="crm-workbench-focus-list">
+          {% for a in attention_items[:3] %}
+          <div class="crm-workbench-focus-item">
+            <div class="crm-attention-dot {% if '风险' in a.item_type %}is-danger{% elif '延期' in a.item_type %}is-warning{% else %}is-primary{% endif %}"></div>
+            <div class="flex-grow-1">
+              <div class="crm-workbench-focus-name">
+                {% if a.link %}
+                <a href="{{ a.link }}" class="text-main text-decoration-none">{{ a.item_name }}</a>
+                {% else %}
+                <span class="text-main">{{ a.item_name }}</span>
+                {% endif %}
+              </div>
+              <div class="crm-workbench-meta-row">
+                <span>{{ a.project_name or a.item_type }}</span>
+                <span>{{ a.due_at or "待处理" }}</span>
+              </div>
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+        {% else %}
+        <div class="crm-note">暂无需关注事项</div>
+        {% endif %}
+      </div>
+
+      <div class="crm-workbench-focus-block">
+        <div class="crm-workbench-focus-title">经营指标</div>
+        {% if cards %}
+        <div class="crm-workbench-indicator-list">
+          {% for card in cards[:4] %}
+          <a href="{{ card.link }}" class="crm-workbench-indicator-item text-decoration-none">
+            <span class="crm-workbench-indicator-label">{{ card.title }}</span>
+            <strong class="crm-workbench-indicator-value">{{ card.value }}</strong>
+          </a>
+          {% endfor %}
+        </div>
+        {% else %}
+        <div class="crm-note">暂无经营指标</div>
+        {% endif %}
+      </div>
+    </section>
+  </div>
+</div>
+
+<section class="modern-card crm-workbench-panel crm-workbench-ai-card mt-4 mb-0">
+  <div class="crm-section-head crm-workbench-section-head">
+    <div class="crm-section-head-main">
+      <div class="crm-section-kicker">AI 优先建议</div>
+      <h5 class="crm-section-title">让系统辅助整理真正的处理顺序</h5>
+    </div>
+    <div class="crm-section-actions">
+      <button type="button" class="btn btn-sm btn-outline-primary" id="aiWorkbenchRefreshBtn">
+        <i class="bi bi-arrow-repeat me-1"></i>刷新建议
+      </button>
+    </div>
+  </div>
+  <div id="aiWorkbenchPriorities" class="crm-ai-panel crm-workbench-ai-panel">
+    <div class="crm-ai-loading"><span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>AI 正在计算优先级...</div>
+  </div>
+</section>
+{% endblock %}
+
+{% block page_scripts %}
+<script>
+(function () {
+  var refreshBtn = document.getElementById('aiWorkbenchRefreshBtn');
+  var listBox = document.getElementById('aiWorkbenchPriorities');
+
+  function escapeHtml(raw) {
+    return String(raw || '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  }
+
+  function setState(type, msg) {
+    if (!listBox) return;
+    if (type === 'loading') {
+      listBox.innerHTML = '<div class="crm-ai-loading"><span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>AI 正在计算优先级...</div>';
+      return;
+    }
+    if (type === 'error') {
+      listBox.innerHTML = '<div class="crm-ai-error">生成失败：' + escapeHtml(msg || '请稍后重试。') + '</div>';
+      return;
+    }
+    if (type === 'empty') {
+      listBox.innerHTML = '<div class="crm-ai-empty">当前数据不足，暂未生成优先建议。</div>';
+      return;
+    }
+    listBox.innerHTML = msg || '';
+  }
+
+  function parseItems(data) {
+    if (!data || typeof data !== 'object') return [];
+    if (Array.isArray(data.items)) return data.items;
+    if (Array.isArray(data.priorities)) return data.priorities;
+    if (Array.isArray(data.sections)) return data.sections;
+    return [];
+  }
+
+  function renderItems(items) {
+    if (!items.length) {
+      setState('empty');
+      return;
+    }
+    var html = '<div class="crm-ai-priority-list">';
+    items.slice(0, 6).forEach(function (item, idx) {
+      var title = '';
+      var detail = '';
+      var link = '';
+      if (typeof item === 'string') {
+        title = item;
+      } else if (item && typeof item === 'object') {
+        title = String(item.title || item.name || item.item_name || '未命名事项').trim();
+        detail = String(item.reason || item.detail || item.summary || '').trim();
+        link = String(item.link || item.item_link || '').trim();
+      }
+      html += '<div class="crm-ai-priority-item">';
+      html += '<div class="crm-ai-priority-rank">' + (idx + 1) + '</div>';
+      html += '<div class="crm-ai-priority-main">';
+      html += '<div class="crm-ai-priority-title">' + escapeHtml(title || '未命名事项') + '</div>';
+      if (detail) html += '<div class="crm-ai-priority-detail">' + escapeHtml(detail) + '</div>';
+      html += '</div>';
+      if (link) html += '<a class="btn btn-sm btn-outline-primary" href="' + escapeHtml(link) + '">处理</a>';
+      html += '</div>';
+    });
+    html += '</div>';
+    setState('done', html);
+  }
+
+  function loadPriorities() {
+    setState('loading');
+    fetch('/workbench/ai/priorities', { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+      .then(function (r) {
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        return r.json();
+      })
+      .then(function (data) {
+        renderItems(parseItems(data));
+      })
+      .catch(function (err) {
+        setState('error', err.message);
+      });
+  }
+
+  if (refreshBtn) {
+    refreshBtn.addEventListener('click', loadPriorities);
+  }
+
+  loadPriorities();
+})();
+</script>
+{% endblock %}

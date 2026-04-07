@@ -1,0 +1,92 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="crm-page-head">
+  <div class="crm-page-head-main">
+    <h4 class="crm-page-title">客户跟进记录</h4>
+    <div class="crm-page-subtitle">时间倒序；可按客户筛选（CU-010）。</div>
+  </div>
+  <div class="crm-page-actions">
+    <form method="get" class="d-inline-flex align-items-center gap-2 m-0">
+      {% if filter_customer_id %}<input type="hidden" name="customer_id" value="{{ filter_customer_id }}">{% endif %}
+      <label class="text-muted small mb-0">每页</label>
+      <select name="per_page" class="form-select form-select-sm" style="width: 90px;" onchange="this.form.submit()">
+        {% for size in [15, 50, 100] %}
+        <option value="{{ size }}" {% if per_page == size %}selected{% endif %}>{{ size }}</option>
+        {% endfor %}
+      </select>
+      <noscript><button type="submit" class="btn btn-sm btn-light">切换</button></noscript>
+    </form>
+    <a class="btn btn-light text-primary" href="{{ url_for('customer_follow_up_export', customer_id=filter_customer_id) if filter_customer_id else url_for('customer_follow_up_export') }}">
+      <i class="bi bi-download me-1"></i>导出记录
+    </a>
+    <a class="btn btn-light" href="{{ url_for('customer_list') }}">客户列表</a>
+  </div>
+</div>
+
+<div class="crm-toolbar-card mb-3">
+  <div class="card-body">
+    <form method="get" class="row g-2 align-items-end">
+      <div class="col-md-4">
+        <label class="form-label small text-muted">按客户 ID 筛选</label>
+        <input type="number" name="customer_id" class="form-control" placeholder="留空则看全部" value="{{ filter_customer_id or '' }}">
+      </div>
+      <div class="col-auto">
+        <button type="submit" class="btn btn-primary">筛选</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="crm-data-card">
+  <div class="card-header">跟进列表</div>
+  <div class="card-body table-responsive">
+    <table class="table table-sm align-middle data-table compact">
+      <thead>
+        <tr>
+          <th class="col-seq">序号</th>
+          <th>客户</th>
+          <th>跟进时间</th>
+          <th>方式</th>
+          <th>跟进人</th>
+          <th>下次跟进</th>
+          <th>关联商机</th>
+          <th>内容摘要</th>
+          <th>操作</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for f in follow_ups %}
+        <tr>
+          <td class="col-seq">{{ loop.index }}</td>
+          <td>{{ f.customer_name }}</td>
+          <td>{{ f.followed_at }}</td>
+          <td>{{ customer_follow_method_labels.get(f.method, f.method) }}</td>
+          <td>{{ f.followed_by }}</td>
+          <td>{{ f.next_followup_at or "—" }}</td>
+          <td>{{ f.opportunity_title or "—" }}</td>
+          <td class="text-truncate" style="max-width:14rem;">{{ (f.content or "")[:80] }}{% if (f.content or "")|length > 80 %}…{% endif %}</td>
+          <td><a class="btn btn-sm btn-outline-primary" href="{{ url_for('customer_detail', customer_id=f.customer_id) }}">客户详情</a></td>
+        </tr>
+        {% else %}
+        <tr><td colspan="9" class="text-center py-4"><div class="crm-empty-state empty-state"><div class="text-main fw-medium">暂无跟进记录</div><div class="text-muted small mt-1">当前筛选条件下没有匹配的客户跟进记录。</div></div></td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% if total_pages > 1 %}
+  <div class="d-flex justify-content-center mt-4">
+    <nav>
+      <ul class="pagination pagination-sm m-0">
+        <li class="page-item {% if page == 1 %}disabled{% endif %}">
+          <a class="page-link" href="{{ url_for('customer_follow_up_list', customer_id=filter_customer_id, per_page=per_page, page=page-1) }}">上一页</a>
+        </li>
+        <li class="page-item disabled"><span class="page-link">{{ page }} / {{ total_pages }}</span></li>
+        <li class="page-item {% if page == total_pages %}disabled{% endif %}">
+          <a class="page-link" href="{{ url_for('customer_follow_up_list', customer_id=filter_customer_id, per_page=per_page, page=page+1) }}">下一页</a>
+        </li>
+      </ul>
+    </nav>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

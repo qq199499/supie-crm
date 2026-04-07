@@ -1,0 +1,235 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="crm-page-head">
+  <div class="crm-page-head-main">
+    <h4 class="crm-page-title">用户管理</h4>
+    <div class="crm-page-subtitle">一个用户可以同时绑定多个角色，系统会按角色权限并集进行判断。默认管理员仍保留单独保护规则。</div>
+  </div>
+</div>
+
+<div class="crm-data-card">
+  <div class="crm-section-head">
+    <div class="crm-section-head-main">
+      <div class="crm-section-head-label text-uppercase small text-muted">系统设置</div>
+      <h5 class="crm-section-title">用户列表</h5>
+      <div class="crm-section-meta">支持多角色绑定，列表内直接看到每个用户的角色组合。</div>
+    </div>
+    <div class="crm-section-actions">
+      <form method="get" class="d-inline-flex align-items-center gap-2 m-0">
+        <label class="text-muted small mb-0">每页</label>
+        <select name="per_page" class="form-select form-select-sm" style="width: 90px;" onchange="this.form.submit()">
+          {% for size in [15, 50, 100] %}
+          <option value="{{ size }}" {% if per_page == size %}selected{% endif %}>{{ size }}</option>
+          {% endfor %}
+        </select>
+        <noscript><button type="submit" class="btn btn-sm btn-light">切换</button></noscript>
+      </form>
+      <a class="btn btn-light text-primary" href="{{ url_for('user_list_export') }}"><i class="bi bi-download me-1"></i>导出</a>
+      <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#createUserModal">
+        <i class="bi bi-plus-lg me-1"></i>新增用户
+      </button>
+    </div>
+  </div>
+
+  <div class="table-responsive table-shell">
+    <table class="table table-hover table-modern table-sm">
+      <thead>
+        <tr>
+          <th style="width: 60px;">序号</th>
+          <th>账号</th>
+          <th>姓名</th>
+          <th>角色组合</th>
+          <th>状态</th>
+          <th style="width: 300px;">操作</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for u in users %}
+        <tr>
+          <td class="text-muted">{{ loop.index }}</td>
+          <td><div class="crm-cell-title">{{ u.username }}</div></td>
+          <td><div class="crm-cell-title">{{ u.display_name }}</div></td>
+          <td>
+            {% if (u.assigned_role_count or 0) > 0 %}
+            <div class="text-main fw-medium">{{ u.assigned_role_label_text }}</div>
+            <div class="crm-note mt-1">{{ u.assigned_role_count }} 个角色</div>
+            {% else %}
+            <span class="text-muted">未分配角色</span>
+            {% endif %}
+          </td>
+          <td>
+            {% if u.is_active %}<span class="status-pill status-success"><i class="bi bi-check-circle-fill"></i> 启用</span>
+            {% else %}<span class="status-pill status-danger"><i class="bi bi-x-circle-fill"></i> 禁用</span>{% endif %}
+          </td>
+          <td>
+            <div class="crm-row-actions gap-3 justify-content-end align-items-center flex-nowrap">
+              {% if u.username != default_admin_username %}
+              <button
+                type="button"
+                class="border-0 bg-transparent p-0 text-primary small fw-medium js-edit-user-roles"
+                data-user-id="{{ u.id }}"
+                data-user-name="{{ u.display_name }}"
+                data-role-ids="{{ (u.assigned_role_ids or []) | join(',') }}"
+                data-bs-toggle="modal"
+                data-bs-target="#editUserRolesModal"
+              >配置角色</button>
+              {% else %}
+              <span class="text-muted small">系统内置用户</span>
+              {% endif %}
+              <form method="post" action="{{ url_for('toggle_user_active', user_id=u.id) }}" onsubmit="return confirm('确认切换该用户启用状态吗？');" class="m-0">
+                <button type="submit" class="border-0 bg-transparent p-0 text-primary small fw-medium">{{ "禁用" if u.is_active else "启用" }}</button>
+              </form>
+              <form method="post" action="{{ url_for('reset_user_password', user_id=u.id) }}" class="d-inline-flex align-items-center gap-2 m-0 flex-nowrap">
+                <input type="password" name="new_password" class="form-control form-control-sm" style="width: 100px;" placeholder="新密码" required>
+                <button type="submit" class="border-0 bg-transparent p-0 text-primary small fw-medium">重置</button>
+              </form>
+              {% if u.username != default_admin_username %}
+              <form method="post" action="{{ url_for('delete_user', user_id=u.id) }}" onsubmit="return confirm('确认删除该用户？此操作不可恢复。');" class="m-0 flex-shrink-0">
+                <button type="submit" class="border-0 bg-transparent p-0 text-danger small fw-medium">删除</button>
+              </form>
+              {% endif %}
+            </div>
+          </td>
+        </tr>
+        {% else %}
+        <tr>
+          <td colspan="6" class="text-center py-5">
+            <div class="crm-empty-state empty-state">
+              <i class="bi bi-people fs-1 text-muted d-block mb-3 opacity-50"></i>
+              <div class="text-main fw-medium">暂无用户</div>
+              <div class="text-muted small mt-1">可通过右上角新增用户开始配置。</div>
+            </div>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% if total_pages > 1 %}
+  <div class="d-flex justify-content-center mt-4">
+    <nav>
+      <ul class="pagination pagination-sm m-0">
+        <li class="page-item {% if page == 1 %}disabled{% endif %}">
+          <a class="page-link" href="{{ url_for('user_list', per_page=per_page, page=page-1) }}">上一页</a>
+        </li>
+        <li class="page-item disabled"><span class="page-link">{{ page }} / {{ total_pages }}</span></li>
+        <li class="page-item {% if page == total_pages %}disabled{% endif %}">
+          <a class="page-link" href="{{ url_for('user_list', per_page=per_page, page=page+1) }}">下一页</a>
+        </li>
+      </ul>
+    </nav>
+  </div>
+  {% endif %}
+</div>
+
+<div class="modal fade" id="createUserModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content entity-modal">
+      <div class="modal-header border-bottom">
+        <h5 class="modal-title fs-6 fw-bold">新增用户</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <form method="post">
+        <div class="modal-body p-4 row g-3">
+          <div class="col-12">
+            <label class="form-label required">登录账号</label>
+            <input name="username" class="form-control" placeholder="建议使用拼音或邮箱前缀" required>
+          </div>
+          <div class="col-12">
+            <label class="form-label required">显示姓名</label>
+            <input name="display_name" class="form-control" placeholder="真实姓名" required>
+          </div>
+          <div class="col-12">
+            <label class="form-label required">初始密码</label>
+            <input type="password" name="password" class="form-control" placeholder="至少6位" required>
+          </div>
+          <div class="col-12">
+            <label class="form-label required">初始角色</label>
+            <div class="crm-role-picker-grid">
+              {% for r in roles %}
+              <label class="crm-role-picker-item">
+                <input class="form-check-input m-0" type="checkbox" name="role_ids" value="{{ r.id }}">
+                <span>
+                  <strong>{{ r.name }}</strong>
+                  <small>{{ r.code }}</small>
+                </span>
+              </label>
+              {% endfor %}
+            </div>
+            <div class="crm-note mt-2">至少选择 1 个角色，可同时选择多个角色。</div>
+          </div>
+        </div>
+        <div class="modal-footer border-top bg-light">
+          <button type="button" class="btn btn-light" data-bs-dismiss="modal">取消</button>
+          <button type="submit" class="btn btn-primary">保存</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<div class="modal fade" id="editUserRolesModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content entity-modal">
+      <div class="modal-header border-bottom">
+        <div>
+          <h5 class="modal-title fs-6 fw-bold">配置用户角色</h5>
+          <div class="text-muted small js-edit-user-title">用户</div>
+        </div>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <form method="post" action="{{ url_for('change_user_role', user_id=0) }}" id="editUserRolesForm">
+        <div class="modal-body p-4 row g-3">
+          <div class="col-12">
+            <label class="form-label required">角色组合</label>
+            <div class="crm-role-picker-grid">
+              {% for r in roles %}
+              <label class="crm-role-picker-item">
+                <input class="form-check-input m-0 js-role-choice" type="checkbox" name="role_ids" value="{{ r.id }}">
+                <span>
+                  <strong>{{ r.name }}</strong>
+                  <small>{{ r.code }}</small>
+                </span>
+              </label>
+              {% endfor %}
+            </div>
+            <div class="crm-note mt-2">保存后将覆盖该用户现有的角色组合。</div>
+          </div>
+        </div>
+        <div class="modal-footer border-top bg-light">
+          <button type="button" class="btn btn-light" data-bs-dismiss="modal">取消</button>
+          <button type="submit" class="btn btn-primary">保存角色</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block page_scripts %}
+<script>
+(function () {
+  var modal = document.getElementById('editUserRolesModal');
+  if (!modal) return;
+  var form = document.getElementById('editUserRolesForm');
+  var title = modal.querySelector('.js-edit-user-title');
+  var choices = modal.querySelectorAll('.js-role-choice');
+  document.querySelectorAll('.js-edit-user-roles').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      var userId = btn.getAttribute('data-user-id') || '';
+      var userName = btn.getAttribute('data-user-name') || '用户';
+      var roleIds = (btn.getAttribute('data-role-ids') || '').split(',').map(function (item) {
+        return item.trim();
+      }).filter(Boolean);
+      form.action = '/users/' + userId + '/role';
+      if (title) title.textContent = userName;
+      choices.forEach(function (choice) {
+        choice.checked = roleIds.indexOf(choice.value) !== -1;
+      });
+    });
+  });
+})();
+</script>
+{% endblock %}

@@ -1,0 +1,324 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="crm-page-head">
+  <div class="crm-page-head-main">
+    <h4 class="crm-page-title">项目管理</h4>
+  </div>
+</div>
+
+<div class="crm-toolbar-card">
+  <form method="get" class="crm-toolbar-form mb-0">
+    <div class="crm-toolbar-item is-wide">
+      <label class="form-label">项目名称 / 客户 / 经理</label>
+      <input type="text" class="form-control" name="q" value="{{ keyword }}" placeholder="搜索项目...">
+    </div>
+    <div class="crm-toolbar-item">
+      <label class="form-label">所属客户</label>
+      <select class="form-select" name="customer_id">
+        <option value="">全部客户</option>
+        {% for c in customers %}
+        <option value="{{ c.id }}" {% if customer_filter == c.id %}selected{% endif %}>{{ c.name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="crm-toolbar-item">
+      <label class="form-label">项目经理</label>
+      <select class="form-select" name="manager">
+        <option value="">全部</option>
+        {% for m in manager_options %}
+        <option value="{{ m }}" {% if manager_filter == m %}selected{% endif %}>{{ m }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="crm-toolbar-item">
+      <label class="form-label">项目状态</label>
+      <select class="form-select" name="status">
+        <option value="">全部状态</option>
+        <option value="not_started" {% if status_filter == 'not_started' %}selected{% endif %}>未开始</option>
+        <option value="in_progress" {% if status_filter == 'in_progress' %}selected{% endif %}>进行中</option>
+        <option value="closed" {% if status_filter == 'closed' %}selected{% endif %}>已完成</option>
+        <option value="blocked" {% if status_filter == 'blocked' %}selected{% endif %}>项目暂停</option>
+      </select>
+    </div>
+    <div class="crm-toolbar-item">
+      <label class="form-label">当前阶段</label>
+      <select class="form-select" name="stage">
+        <option value="">全部阶段</option>
+        {% for key, val in project_stage_labels.items() %}
+        <option value="{{ key }}" {% if stage_filter == key %}selected{% endif %}>{{ val }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="crm-toolbar-actions">
+      <button class="btn btn-primary" type="submit"><i class="bi bi-search me-1"></i>查询</button>
+      <a href="{{ url_for('project_manage') }}" class="btn btn-light">重置</a>
+      <button class="btn btn-light text-primary" type="button" data-bs-toggle="collapse" data-bs-target="#moreFilters">
+        <i class="bi bi-funnel me-1"></i>更多筛选
+      </button>
+    </div>
+    <div class="collapse w-100 mt-2" id="moreFilters">
+      <div class="row g-3">
+        <div class="col-12 col-sm-6 col-lg-3">
+          <label class="form-label">风险等级</label>
+          <select class="form-select" name="risk">
+            <option value="">全部</option>
+            <option value="high" {% if risk_filter == 'high' %}selected{% endif %}>存在高风险</option>
+            <option value="clean" {% if risk_filter == 'clean' %}selected{% endif %}>无高风险</option>
+          </select>
+        </div>
+        <div class="col-12 col-sm-6 col-lg-3">
+          <label class="form-label">是否延期</label>
+          <select class="form-select" name="delayed">
+            <option value="">全部</option>
+            <option value="yes" {% if delayed_filter == 'yes' %}selected{% endif %}>已延期</option>
+            <option value="no" {% if delayed_filter == 'no' %}selected{% endif %}>未延期</option>
+          </select>
+        </div>
+        <div class="col-12 col-sm-6 col-lg-3">
+          <label class="form-label">排序方式</label>
+          <select class="form-select" name="sort">
+            <option value="updated_at" {% if sort_key == 'updated_at' %}selected{% endif %}>最近更新</option>
+            <option value="created_at" {% if sort_key == 'created_at' %}selected{% endif %}>创建时间</option>
+            <option value="name" {% if sort_key == 'name' %}selected{% endif %}>项目名称</option>
+            <option value="end_date" {% if sort_key == 'end_date' %}selected{% endif %}>计划结束日</option>
+            <option value="progress" {% if sort_key == 'progress' %}selected{% endif %}>任务平均进度</option>
+          </select>
+        </div>
+      </div>
+    </div>
+  </form>
+</div>
+
+<div class="crm-data-card">
+  <div class="crm-section-head">
+    <div class="crm-section-head-main">
+      <div class="crm-section-head-label text-uppercase small text-muted">项目视图</div>
+      <h5 class="crm-section-title">项目列表</h5>
+    </div>
+    <div class="crm-section-actions">
+      <form method="get" class="d-inline-flex align-items-center gap-2 m-0">
+        <input type="hidden" name="q" value="{{ keyword }}">
+        <input type="hidden" name="customer_id" value="{{ customer_filter or '' }}">
+        <input type="hidden" name="manager" value="{{ manager_filter or '' }}">
+        <input type="hidden" name="status" value="{{ status_filter or '' }}">
+        <input type="hidden" name="stage" value="{{ stage_filter or '' }}">
+        <input type="hidden" name="risk" value="{{ risk_filter or '' }}">
+        <input type="hidden" name="delayed" value="{{ delayed_filter or '' }}">
+        <input type="hidden" name="sort" value="{{ sort_key }}">
+        <label class="text-muted small mb-0">每页</label>
+        <select name="per_page" class="form-select form-select-sm" style="width: 90px;" onchange="this.form.submit()">
+          {% for size in [15, 50, 100] %}
+          <option value="{{ size }}" {% if per_page == size %}selected{% endif %}>{{ size }}</option>
+          {% endfor %}
+        </select>
+        <noscript><button type="submit" class="btn btn-sm btn-light">切换</button></noscript>
+      </form>
+      <a class="btn btn-light text-primary" href="{{ url_for('project_manage_export', q=keyword, customer_id=customer_filter, manager=manager_filter, status=status_filter, stage=stage_filter, risk=risk_filter, delayed=delayed_filter, sort=sort_key) }}"><i class="bi bi-download me-1"></i>导出</a>
+      {% if can('project', 'manage') %}
+      <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#createProjectModal">
+        <i class="bi bi-plus-lg me-1"></i>新建项目
+      </button>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="table-responsive table-shell">
+    <table class="table table-hover table-modern table-sm">
+      <thead>
+        <tr>
+          <th style="width: 60px;">序号</th>
+          <th style="min-width: 200px;">项目名称</th>
+          <th>客户 / 合同</th>
+          <th>项目经理</th>
+          <th>阶段</th>
+          <th>状态</th>
+          <th>健康度</th>
+          <th style="min-width: 150px;">交付进度</th>
+          <th style="width: 140px;">操作</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for p in projects %}
+        <tr>
+          <td class="text-muted">{{ (page - 1) * per_page + loop.index }}</td>
+          <td>
+            <a class="crm-cell-title text-decoration-none" href="{{ url_for('project_detail', project_id=p.id) }}">{{ p.name }}</a>
+            <div class="crm-cell-meta">{{ project_type_labels.get(p.project_type, p.project_type) }}</div>
+          </td>
+          <td>
+            <div class="crm-cell-title">{% if p.customer_id %}<a href="{{ url_for('customer_detail', customer_id=p.customer_id) }}" class="text-decoration-none">{{ p.customer_name }}</a>{% else %}{{ p.customer_name or "-" }}{% endif %}</div>
+            <div class="crm-cell-meta">{{ p.contract_no or "无合同关联" }}</div>
+          </td>
+          <td>{{ p.manager }}</td>
+          <td><span class="status-pill status-muted">{{ project_stage_labels.get(p.current_stage, p.current_stage) }}</span></td>
+          <td>
+            {% if p.status == 'in_progress' %}
+              <span class="status-pill status-primary"><i class="bi bi-circle-fill"></i> {{ project_status_labels.get(p.status) }}</span>
+            {% elif p.status == 'closed' %}
+              <span class="status-pill status-success"><i class="bi bi-check-circle-fill"></i> {{ project_status_labels.get(p.status) }}</span>
+            {% elif p.status == 'blocked' %}
+              <span class="status-pill status-warning"><i class="bi bi-pause-circle-fill"></i> {{ project_status_labels.get(p.status) }}</span>
+            {% else %}
+              <span class="status-pill status-muted">{{ project_status_labels.get(p.status, p.status) }}</span>
+            {% endif %}
+          </td>
+          <td>
+            {% set h = p.get('health', 'green') %}
+            {% if h == 'red' %}
+              <span class="status-pill status-danger"><i class="bi bi-x-circle-fill"></i> {{ health_labels.get(h, h) }}</span>
+            {% elif h == 'yellow' %}
+              <span class="status-pill status-warning"><i class="bi bi-exclamation-circle-fill"></i> {{ health_labels.get(h, h) }}</span>
+            {% else %}
+              <span class="status-pill status-success"><i class="bi bi-check-circle-fill"></i> {{ health_labels.get(h, h) }}</span>
+            {% endif %}
+          </td>
+          <td>
+            <div class="d-flex align-items-center gap-2">
+              <div class="progress flex-grow-1" style="height: 6px; background-color: #F2F3F5;">
+                <div class="progress-bar {% if p.progress == 100 %}bg-success{% else %}bg-primary{% endif %}" style="width: {{ p.progress }}%"></div>
+              </div>
+              <span class="text-muted small" style="width: 35px; text-align: right;">{{ p.progress }}%</span>
+            </div>
+            {% if p.get('delayed_milestones', 0) > 0 %}
+              <div class="text-danger small mt-1"><i class="bi bi-exclamation-triangle"></i> 里程碑延期</div>
+            {% endif %}
+          </td>
+          <td>
+            <div class="crm-row-actions gap-3 justify-content-end align-items-center" style="opacity: 0.9;">
+              <a href="{{ url_for('project_detail', project_id=p.id) }}" class="text-primary text-decoration-none small fw-medium">详情</a>
+              {% if is_admin %}
+              <form method="post" action="{{ url_for('delete_project', project_id=p.id) }}" onsubmit="return confirm('确认将该项目移入回收站？');" class="d-inline">
+                <button type="submit" class="border-0 bg-transparent p-0 text-danger small fw-medium">删除</button>
+              </form>
+              {% endif %}
+            </div>
+          </td>
+        </tr>
+        {% else %}
+        <tr>
+          <td colspan="9" class="text-center py-5">
+            <div class="crm-empty-state empty-state">
+              <i class="bi bi-inbox fs-1 text-muted d-block mb-3"></i>
+              <div class="text-main fw-medium">暂无相关项目</div>
+              <div class="text-muted small mt-1">可通过右上角新建项目开始管理。</div>
+            </div>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  
+  {% if total_pages > 1 %}
+  <div class="d-flex justify-content-center mt-4">
+    <nav>
+      <ul class="pagination pagination-sm m-0">
+        <li class="page-item {% if page == 1 %}disabled{% endif %}">
+          <a class="page-link" href="{{ url_for('project_manage', q=keyword, customer_id=customer_filter, manager=manager_filter, status=status_filter, stage=stage_filter, risk=risk_filter, delayed=delayed_filter, sort=sort_key, per_page=per_page, page=page-1) }}">上一页</a>
+        </li>
+        <li class="page-item disabled"><span class="page-link">{{ page }} / {{ total_pages }}</span></li>
+        <li class="page-item {% if page == total_pages %}disabled{% endif %}">
+          <a class="page-link" href="{{ url_for('project_manage', q=keyword, customer_id=customer_filter, manager=manager_filter, status=status_filter, stage=stage_filter, risk=risk_filter, delayed=delayed_filter, sort=sort_key, per_page=per_page, page=page+1) }}">下一页</a>
+        </li>
+      </ul>
+    </nav>
+  </div>
+  {% endif %}
+</div>
+
+<!-- 新建项目弹窗 -->
+{% if can('project', 'manage') %}
+<div class="modal fade" id="createProjectModal" tabindex="-1">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content entity-modal">
+      <div class="modal-header border-bottom">
+        <h5 class="modal-title fs-6 fw-bold">新建项目</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body p-4">
+        <form method="post" action="{{ url_for('create_project') }}" id="createProjectForm">
+          <div class="row g-4">
+            <div class="col-md-12">
+              <label class="form-label required">项目名称</label>
+              <input type="text" class="form-control" name="name" required>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label required">关联客户</label>
+              <select class="form-select" name="customer_id" required>
+                <option value="">请选择...</option>
+                {% for c in customers %}
+                <option value="{{ c.id }}">{{ c.name }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label required">项目经理</label>
+              <div class="crm-person-picker" data-source-url="{{ url_for('api_users_pm_search') }}">
+                <input type="hidden" name="manager_user_id" class="crm-person-picker-id" value="">
+                <input type="hidden" name="manager" class="crm-person-picker-value" value="">
+                <div class="position-relative">
+                  <input type="text" class="form-control crm-person-picker-input" placeholder="输入姓名或账号搜索项目经理" autocomplete="off" required>
+                  <div class="list-group shadow-sm crm-person-picker-dropdown d-none"></div>
+                </div>
+              </div>
+              <div class="form-text mt-1" style="font-size: 12px;"><i class="bi bi-info-circle"></i> 只有角色为「项目经理」的用户可选</div>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label required">项目类型</label>
+              <select class="form-select" name="project_type" required>
+                <option value="">请选择...</option>
+                {% for key, val in project_type_labels.items() %}
+                <option value="{{ key }}">{{ val }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">初始状态</label>
+              <select class="form-select" name="status">
+                <option value="not_started">未开始</option>
+                <option value="in_progress" selected>进行中</option>
+                <option value="blocked">项目暂停</option>
+              </select>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">规划阶段</label>
+              <select class="form-select" name="current_stage">
+                {% for key, val in project_stage_labels.items() %}
+                <option value="{{ key }}">{{ val }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">生成交付阶段 (可选模板)</label>
+              <select class="form-select" name="phase_template_id">
+                <option value="0">暂不生成，后续手动规划</option>
+                {% for tmpl in phase_templates %}
+                <option value="{{ tmpl.id }}">{{ tmpl.name }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">计划开始日期</label>
+              <input type="date" class="form-control" name="start_date">
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">计划结束日期</label>
+              <input type="date" class="form-control" name="end_date">
+            </div>
+            <div class="col-md-12">
+              <label class="form-label">项目描述 / 目标</label>
+              <textarea class="form-control" name="description" rows="3"></textarea>
+            </div>
+          </div>
+        </form>
+      </div>
+      <div class="modal-footer border-top bg-light">
+        <button type="button" class="btn btn-light" data-bs-dismiss="modal">取消</button>
+        <button type="submit" form="createProjectForm" class="btn btn-primary">确认创建</button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endif %}
+{% endblock %}

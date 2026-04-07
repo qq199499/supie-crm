@@ -1,0 +1,180 @@
+<div class="crm-toolbar-card">
+  <div class="crm-toolbar-form mb-0">
+    <div class="row g-3 align-items-end">
+      <div class="col-12 col-lg-8">
+        <div class="crm-toolbar-note mt-0">
+          里程碑用于管理关键节点和交付目标。新建里程碑通过弹窗完成，保存后会立即出现在当前列表中。
+        </div>
+      </div>
+      <div class="col-12 col-lg-auto ms-lg-auto d-flex gap-2 justify-content-lg-end">
+        {% if can('project', 'manage') %}
+        <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#createMilestoneModal">
+          <i class="bi bi-plus-lg me-1"></i>新建里程碑
+        </button>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="crm-data-card">
+  <div class="crm-section-head">
+    <div class="crm-section-head-main">
+      <div class="crm-section-head-label">关键节点</div>
+      <h5 class="crm-section-title">里程碑列表</h5>
+      <div class="crm-section-meta">统一查看里程碑负责人、截止时间、状态和相关附件。</div>
+    </div>
+  </div>
+
+  <div class="table-responsive table-shell">
+    <table class="table table-hover table-modern table-sm">
+      <thead>
+        <tr>
+          <th style="width: 60px;">序号</th>
+          <th>里程碑名称</th>
+          <th>负责人</th>
+          <th>截止日期</th>
+          <th>状态</th>
+          <th>附件</th>
+          <th style="width: 120px;">操作</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for m in milestones %}
+        {% set can_edit_milestone = can('project', 'manage') or (can('acceptance', 'manage') and m.owner|string|trim|lower in current_user_identity_values) %}
+        <tr>
+          <td class="text-muted">{{ loop.index }}</td>
+          <td><div class="crm-cell-title">{{ m.title }}</div></td>
+          <td>{{ m.owner }}</td>
+          <td class="text-muted small">{% if m.due_date %}{{ (m.due_date|string)[:10] }}{% else %}—{% endif %}</td>
+          <td>
+            {% if m.status == 'done' %}
+            <span class="status-pill status-success">已完成</span>
+            {% elif m.status == 'delayed' %}
+            <span class="status-pill status-danger">延期</span>
+            {% else %}
+            <span class="status-pill status-warning">未完成</span>
+            {% endif %}
+          </td>
+          <td>
+            {% set milestone_attachments = milestone_attachments_by_id.get(m.id|int, []) %}
+            <div class="d-flex gap-1 flex-wrap align-items-center">
+              <button type="button" class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#uploadAttachmentModal" data-attachment-target-type="milestone" data-attachment-target-id="{{ m.id }}" data-attachment-target-name="{{ m.title }}">上传</button>
+              <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#attachmentListModal" data-attachment-scope="milestone" data-attachment-scope-id="{{ m.id }}" data-attachment-target-type="milestone" data-attachment-target-name="{{ m.title }}">查看</button>
+              <span class="text-muted small">{{ milestone_attachments|length }} 个</span>
+            </div>
+          </td>
+          <td>
+            <div class="crm-row-actions gap-3 justify-content-end align-items-center">
+              {% if can_edit_milestone %}
+              <button class="border-0 bg-transparent p-0 text-primary small fw-medium" type="button" data-bs-toggle="collapse" data-bs-target="#milestone-edit-{{ m.id }}">编辑</button>
+              {% endif %}
+              {% if can('project', 'manage') %}
+              <form method="post" action="{{ url_for('delete_milestone', milestone_id=m.id) }}" onsubmit="return confirm('确认删除该里程碑吗？');" class="d-inline">
+                <button type="submit" class="border-0 bg-transparent p-0 text-danger small fw-medium">删除</button>
+              </form>
+              {% endif %}
+            </div>
+          </td>
+        </tr>
+        <tr class="collapse" id="milestone-edit-{{ m.id }}">
+          <td colspan="7" class="p-3 bg-light border-0">
+            <form method="post" action="{{ url_for('update_milestone', milestone_id=m.id) }}" class="row g-3 m-0">
+              <div class="col-md-4">
+                <label class="form-label">里程碑名称</label>
+                <input type="text" name="title" class="form-control" value="{{ m.title }}" required>
+              </div>
+              <div class="col-md-3">
+                <label class="form-label">负责人</label>
+                <div class="crm-person-picker" data-person-options='{{ project_member_options|tojson }}'>
+                  <input type="hidden" name="owner_user_id" class="crm-person-picker-id" value="">
+                  <input type="hidden" name="owner" class="crm-person-picker-value" value="{{ m.owner }}">
+                  <div class="position-relative">
+                    <input type="text" class="form-control crm-person-picker-input" value="{{ m.owner }}" autocomplete="off" placeholder="输入姓名或账号搜索项目成员" required>
+                    <div class="list-group shadow-sm crm-person-picker-dropdown d-none"></div>
+                  </div>
+                </div>
+              </div>
+              <div class="col-md-3">
+                <label class="form-label">截止日期</label>
+                <input type="date" name="due_date" class="form-control" value="{% if m.due_date %}{{ (m.due_date|string)[:10] }}{% endif %}" required>
+              </div>
+              <div class="col-md-2">
+                <label class="form-label">状态</label>
+                <select name="status" class="form-select">
+                  <option value="open" {% if m.status == 'open' %}selected{% endif %}>未完成</option>
+                  <option value="done" {% if m.status == 'done' %}selected{% endif %}>已完成</option>
+                  <option value="delayed" {% if m.status == 'delayed' %}selected{% endif %}>延期</option>
+                </select>
+              </div>
+              <div class="col-12 text-end">
+                {% if can_edit_milestone %}
+                <button type="submit" class="btn btn-primary px-4">保存里程碑</button>
+                {% else %}
+                <span class="text-muted small">仅负责人可编辑该里程碑。</span>
+                {% endif %}
+              </div>
+            </form>
+          </td>
+        </tr>
+        {% else %}
+        <tr>
+          <td colspan="7" class="text-center py-5">
+            <div class="crm-empty-state empty-state">
+              <i class="bi bi-inbox fs-1 text-muted d-block mb-3"></i>
+              <div class="text-main fw-medium">暂无里程碑</div>
+              <div class="text-muted small mt-1">点击右上角“新建里程碑”建立关键节点。</div>
+            </div>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div class="modal fade" id="createMilestoneModal" tabindex="-1">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content entity-modal">
+      <div class="modal-header border-bottom">
+        <h5 class="modal-title fs-6 fw-bold">新建里程碑</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <form method="post" action="{{ url_for('create_milestone', project_id=project.id) }}">
+        <div class="modal-body p-4 row g-3">
+          <div class="col-12">
+            <label class="form-label required">里程碑名称</label>
+            <input name="title" class="form-control" placeholder="请输入里程碑名称" required>
+          </div>
+          <div class="col-md-4">
+            <label class="form-label required">负责人</label>
+            <div class="crm-person-picker" data-person-options='{{ project_member_options|tojson }}'>
+              <input type="hidden" name="owner_user_id" class="crm-person-picker-id" value="">
+              <input type="hidden" name="owner" class="crm-person-picker-value" value="">
+              <div class="position-relative">
+                <input type="text" class="form-control crm-person-picker-input" placeholder="输入姓名或账号搜索项目成员" autocomplete="off" required>
+                <div class="list-group shadow-sm crm-person-picker-dropdown d-none"></div>
+              </div>
+            </div>
+          </div>
+          <div class="col-md-4">
+            <label class="form-label required">截止日期</label>
+            <input type="date" name="due_date" class="form-control" required>
+          </div>
+          <div class="col-md-4">
+            <label class="form-label">状态</label>
+            <select name="status" class="form-select">
+              <option value="open">未完成</option>
+              <option value="done">已完成</option>
+              <option value="delayed">延期</option>
+            </select>
+          </div>
+        </div>
+        <div class="modal-footer border-top bg-light">
+          <button type="button" class="btn btn-light" data-bs-dismiss="modal">取消</button>
+          <button type="submit" class="btn btn-primary px-4">保存里程碑</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>

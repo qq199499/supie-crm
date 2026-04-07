@@ -1,0 +1,386 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="opportunity-detail-page crm-detail-page">
+  <div class="crm-detail-header pb-3 mb-4 border-bottom">
+    <div class="crm-entity-head">
+      <div class="crm-entity-head-row d-flex flex-wrap align-items-start justify-content-between gap-3">
+        <div class="crm-entity-head-main d-flex gap-3">
+          <a href="{{ url_for('opportunity_list') }}" class="icon-btn crm-entity-back mt-1" title="返回"><i class="bi bi-arrow-left"></i></a>
+          <div>
+            <div class="d-flex align-items-center gap-2 flex-wrap">
+              <h4 class="crm-entity-title">{{ o.title }}</h4>
+              <span class="status-pill status-muted">{{ opportunity_stage_labels.get(o.stage, o.stage or '-') }}</span>
+              {% if o.status == 'won' %}
+                <span class="status-pill status-success"><i class="bi bi-check-circle-fill"></i>{{ opportunity_status_labels.get(o.status, o.status) }}</span>
+              {% elif o.status == 'lost' %}
+                <span class="status-pill status-danger"><i class="bi bi-x-circle-fill"></i>{{ opportunity_status_labels.get(o.status, o.status) }}</span>
+              {% else %}
+                <span class="status-pill status-primary"><i class="bi bi-circle-fill"></i>{{ opportunity_status_labels.get(o.status, o.status) }}</span>
+              {% endif %}
+            </div>
+            <div class="crm-entity-subtitle mt-2 text-muted small">
+              客户：<a href="{{ url_for('customer_detail', customer_id=o.customer_id) }}" class="text-decoration-none">{{ o.customer_name }}</a>
+              | 负责人：{{ o.owner }}
+              | 预计签约日：{{ o.expected_sign_date or '-' }}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  {% set sm = summary_metrics if summary_metrics is defined and summary_metrics else {} %}
+  {% set linked = namespace(amount_sum=0.0) %}
+  {% for c in linked_contracts %}
+    {% set linked.amount_sum = linked.amount_sum + (c.amount or 0)|float %}
+  {% endfor %}
+  {% set last_stage_log = stage_logs[0] if stage_logs else None %}
+  {% set stage_duration_days = sm.get('stage_duration_days', '-') %}
+  {% if stage_duration_days is number %}
+    {% set stage_duration_days = stage_duration_days ~ '天' %}
+  {% endif %}
+  {% set linked_contract_amount = sm.get('linked_contract_amount_sum', linked.amount_sum) %}
+  {% set linked_contract_count = sm.get('linked_contract_count', linked_contracts|length) %}
+  {% set last_stage_changed_at = sm.get('last_stage_changed_at', ((last_stage_log.changed_at or '')|replace('T',' '))[0:16] if last_stage_log else '-') %}
+  {% set last_stage_changed_by = sm.get('last_stage_changed_by', last_stage_log.changed_by if last_stage_log else '-') %}
+  {% set last_followup_at = sm.get('latest_followed_at', '-') or '-' %}
+  {% set next_followup_at = sm.get('next_followup_at', '-') or '-' %}
+  {% set sign_date = sm.get('expected_sign_date', o.expected_sign_date or '-') %}
+  {% set won_confidence = amount_confidence_labels.get(o.amount_confidence, o.amount_confidence or '待评估') %}
+
+{% if o.stage == 'lost' %}
+<div class="alert alert-danger border mb-4 shadow-sm d-flex align-items-start gap-3">
+  <i class="bi bi-exclamation-triangle-fill fs-5 mt-1"></i>
+  <div>
+    <strong>输单原因：</strong> {{ lost_reason_labels.get(o.lost_reason, o.lost_reason or '-') }} {{ o.lost_reason_note or '' }}
+    {% if o.competitor %}<span class="ms-3"><i class="bi bi-building me-1"></i><strong>竞争对手：</strong> {{ o.competitor }}</span>{% endif %}
+  </div>
+</div>
+{% endif %}
+
+<div class="crm-detail-body">
+    <ul class="nav nav-tabs crm-opportunity-detail-tabs mb-4 border-0 gap-3" role="tablist" data-crm-tab-nav="opportunity">
+      <li class="nav-item">
+        <button class="nav-link crm-opportunity-detail-tab active" data-bs-toggle="tab" data-bs-target="#tab-overview" type="button">
+          <span class="crm-opportunity-detail-tab-title">商机操作</span>
+          <span class="crm-opportunity-detail-tab-meta">阶段 {{ opportunity_stage_labels.get(o.stage, o.stage or '-') }} · 金额 ¥ {{ "%.0f"|format(o.amount|float) }} · 预计签约 {{ sign_date }}</span>
+        </button>
+      </li>
+      <li class="nav-item">
+        <button class="nav-link crm-opportunity-detail-tab" data-bs-toggle="tab" data-bs-target="#tab-logs" type="button">
+          <span class="crm-opportunity-detail-tab-title">阶段流转记录</span>
+          <span class="crm-opportunity-detail-tab-meta">最近流转 {{ last_stage_changed_at }} · {{ last_stage_changed_by }}</span>
+        </button>
+      </li>
+      <li class="nav-item">
+        <button class="nav-link crm-opportunity-detail-tab" data-bs-toggle="tab" data-bs-target="#tab-contracts" type="button">
+          <span class="crm-opportunity-detail-tab-title">关联合同</span>
+          <span class="crm-opportunity-detail-tab-meta">已关联 {{ linked_contract_count }} 份 · 最近跟进 {{ last_followup_at }}</span>
+        </button>
+      </li>
+    </ul>
+
+    <div class="tab-content">
+  <!-- 商机概览 Tab -->
+  <div class="tab-pane fade show active" id="tab-overview">
+    <div class="modern-card crm-content-card crm-detail-inline-card crm-opportunity-overview-card">
+      <div class="crm-opportunity-overview-strip">
+        <div class="crm-opportunity-overview-item">
+          <div class="crm-opportunity-overview-label">预计金额</div>
+          <div class="crm-opportunity-overview-value">¥ {{ "%.0f"|format(o.amount|float) }}</div>
+        </div>
+        <div class="crm-opportunity-overview-item">
+          <div class="crm-opportunity-overview-label">当前阶段</div>
+          <div class="crm-opportunity-overview-value">{{ opportunity_stage_labels.get(o.stage, o.stage or '-') }}</div>
+        </div>
+        <div class="crm-opportunity-overview-item">
+          <div class="crm-opportunity-overview-label">赢单判断</div>
+          <div class="crm-opportunity-overview-value">{{ won_confidence }}</div>
+        </div>
+        <div class="crm-opportunity-overview-item">
+          <div class="crm-opportunity-overview-label">预计签约日</div>
+          <div class="crm-opportunity-overview-value">{{ sign_date }}</div>
+        </div>
+        <div class="crm-opportunity-overview-item">
+          <div class="crm-opportunity-overview-label">最近流转</div>
+          <div class="crm-opportunity-overview-value">{{ last_stage_changed_at }}</div>
+          <div class="crm-opportunity-overview-note">{{ last_stage_changed_by }}</div>
+        </div>
+        <div class="crm-opportunity-overview-item">
+          <div class="crm-opportunity-overview-label">审批状态</div>
+          <div class="crm-opportunity-overview-value">
+            {% if pending_won %}
+            <span class="status-pill status-warning">审批处理中</span>
+            {% else %}
+            <span class="status-pill status-success">可发起审批</span>
+            {% endif %}
+          </div>
+          <div class="crm-opportunity-overview-note">关联合同 {{ linked_contract_count }} 份 · 下次跟进 {{ next_followup_at }}</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="crm-opportunity-overview-grid">
+      <div class="crm-opportunity-overview-main-top">
+        {% if can('opportunity', 'manage') and o.stage not in ('won','lost') %}
+        <div class="row g-4">
+          <div class="col-lg-6">
+            <div class="modern-card crm-content-card h-100">
+              <div class="crm-section-head">
+                <div class="crm-section-head-main">
+                  <div class="crm-section-head-label">阶段推进</div>
+                  <h5 class="crm-section-title">推进阶段</h5>
+                </div>
+              </div>
+              <form method="post" action="{{ url_for('opportunity_change_stage', opportunity_id=o.id) }}" class="row g-3">
+                <div class="col-12">
+                  <label class="form-label">目标阶段</label>
+                  <select name="to_stage" class="form-select" required>
+                    {% for code, lab in opportunity_stage_labels.items() %}
+                    {% if code in ('lead','validate','proposal','negotiate') %}
+                    <option value="{{ code }}" {% if o.stage == code %}selected{% endif %}>{{ lab }}</option>
+                    {% endif %}
+                    {% endfor %}
+                  </select>
+                </div>
+                <div class="col-12">
+                  <label class="form-label">阶段说明 (如回退需填写)</label>
+                  <input name="note" class="form-control" placeholder="回退或特殊情况请填写说明">
+                </div>
+                <div class="col-12 text-end mt-4 pt-3 border-top">
+                  <button type="submit" class="btn btn-primary px-4">保存阶段</button>
+                </div>
+              </form>
+            </div>
+          </div>
+          
+          <div class="col-lg-6">
+            <div class="modern-card crm-content-card h-100 bg-light border">
+              <div class="crm-section-head">
+                <div class="crm-section-head-main">
+                  <div class="crm-section-head-label">闭环处理</div>
+                  <h5 class="crm-section-title text-danger">标记输单</h5>
+                </div>
+              </div>
+              <form method="post" action="{{ url_for('opportunity_mark_lost', opportunity_id=o.id) }}" class="row g-3">
+                <div class="col-12">
+                  <label class="form-label">丢单原因</label>
+                  <select name="lost_reason" class="form-select" required>
+                    <option value="">请选择主要原因</option>
+                    {% for code, lab in lost_reason_labels.items() %}
+                    <option value="{{ code }}">{{ lab }}</option>
+                    {% endfor %}
+                  </select>
+                </div>
+                <div class="col-12">
+                  <label class="form-label">竞争对手 / 补充说明</label>
+                  <div class="row g-2">
+                    <div class="col-md-6"><input name="competitor" class="form-control" placeholder="竞争对手名称 (可选)"></div>
+                    <div class="col-md-6"><input name="lost_reason_note" class="form-control" placeholder="其他补充说明"></div>
+                  </div>
+                </div>
+                <div class="col-12 text-end mt-4 pt-3">
+                  <button type="submit" class="btn btn-outline-danger px-4" onclick="return confirm('确认标记为输单？该操作不可逆');">确认输单</button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+        {% else %}
+        <div class="modern-card crm-content-card">
+          <div class="crm-empty-state empty-state">
+            <i class="bi bi-check2-circle fs-1 text-success opacity-50 mb-3 d-block"></i>
+            <div>该商机已闭环或无权限操作</div>
+          </div>
+        </div>
+        {% endif %}
+      </div>
+      <div class="crm-opportunity-overview-side-top">
+        <div class="modern-card crm-side-card crm-detail-inline-card h-100">
+          <div class="crm-section-head">
+            <div class="crm-section-head-main">
+              <div class="crm-section-head-label">商机摘要</div>
+              <h5 class="crm-section-title">关键判断</h5>
+            </div>
+          </div>
+          <div class="crm-opportunity-panel-scroll">
+            <div class="crm-detail-keyfacts">
+              <div class="crm-detail-keyfact"><span class="crm-detail-keyfact-label">客户</span><span class="crm-detail-keyfact-value">{{ o.customer_name }}</span></div>
+              <div class="crm-detail-keyfact"><span class="crm-detail-keyfact-label">负责人</span><span class="crm-detail-keyfact-value">{{ o.owner }}</span></div>
+              <div class="crm-detail-keyfact"><span class="crm-detail-keyfact-label">阶段</span><span class="crm-detail-keyfact-value">{{ opportunity_stage_labels.get(o.stage, o.stage or '-') }}</span></div>
+              <div class="crm-detail-keyfact"><span class="crm-detail-keyfact-label">状态</span><span class="crm-detail-keyfact-value">{{ opportunity_status_labels.get(o.status, o.status) }}</span></div>
+              <div class="crm-detail-keyfact"><span class="crm-detail-keyfact-label">预计金额</span><span class="crm-detail-keyfact-value">¥ {{ "%.2f"|format(o.amount) }}</span></div>
+              <div class="crm-detail-keyfact"><span class="crm-detail-keyfact-label">阶段进入</span><span class="crm-detail-keyfact-value">{{ ((o.stage_started_at or '')|replace('T',' '))[0:16] or '-' }}</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="crm-opportunity-overview-main-bottom">
+        {% if can('opportunity', 'manage') and o.stage not in ('won','lost') %}
+        <div class="modern-card crm-content-card text-center py-5 h-100">
+          <div class="crm-section-head justify-content-center border-0 pb-0 mb-3">
+            <div class="crm-section-head-main text-center">
+              <div class="crm-section-head-label">审批动作</div>
+              <h5 class="crm-section-title">赢单审批</h5>
+            </div>
+          </div>
+          <div class="text-muted mb-4 small mx-auto" style="max-width: 420px;">
+            当商机谈判成功即将签约时，需要发起赢单审批。请确认当前商机阶段处于「方案报价」或「商务谈判」。
+          </div>
+          {% if pending_won %}
+          <div class="alert alert-warning d-inline-flex align-items-center gap-2 px-3 py-2 m-0"><i class="bi bi-clock-history"></i>已有待处理的赢单审批流程中...</div>
+          {% else %}
+          <button type="button" class="btn btn-success px-4" data-bs-toggle="modal" data-bs-target="#opportunityApprovalModal">
+            <i class="bi bi-trophy me-1"></i>提交赢单审批
+          </button>
+          {% endif %}
+        </div>
+        {% else %}
+        <div class="modern-card crm-content-card h-100">
+          <div class="crm-empty-state empty-state py-5">
+            <i class="bi bi-check2-circle fs-1 text-success opacity-50 mb-3 d-block"></i>
+            <div>该商机当前无需审批动作</div>
+          </div>
+        </div>
+        {% endif %}
+      </div>
+      <div class="crm-opportunity-overview-side-bottom">
+        <div class="modern-card crm-side-card crm-detail-inline-card h-100">
+          <div class="crm-section-head">
+            <div class="crm-section-head-main">
+              <div class="crm-section-head-label">业务链路</div>
+              <h5 class="crm-section-title">关联合同</h5>
+            </div>
+          </div>
+          <div class="crm-opportunity-panel-scroll">
+            <div class="crm-detail-link-list">
+              {% for c in linked_contracts[:4] %}
+              <a href="{{ url_for('contract_detail', contract_id=c.id) }}" class="crm-detail-link-card">
+                <div class="crm-detail-link-card-head">
+                  <span class="text-truncate" title="{{ c.contract_no }}">{{ c.contract_no }}</span>
+                  <i class="bi bi-chevron-right text-muted"></i>
+                </div>
+                <div class="crm-detail-link-card-meta">金额 ¥ {{ c.amount }} · {{ contract_status_labels.get(c.status, c.status) }}</div>
+              </a>
+              {% else %}
+              <div class="crm-empty-state empty-state py-4">暂无关联合同</div>
+              {% endfor %}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 阶段记录 Tab -->
+  <div class="tab-pane fade" id="tab-logs">
+    <div class="modern-card crm-content-card">
+      <div class="table-responsive">
+        <table class="table table-modern">
+          <thead><tr><th style="width: 180px;">变更时间</th><th>操作人</th><th>流转记录</th><th>备注说明</th></tr></thead>
+          <tbody>
+            {% for log in stage_logs %}
+            <tr>
+              <td class="text-muted">{{ ((log.changed_at or '')|replace('T',' '))[0:19] }}</td>
+              <td class="text-main fw-medium">{{ log.changed_by }}</td>
+              <td>
+                <span class="status-pill status-muted">{{ opportunity_stage_labels.get(log.from_stage, log.from_stage or '初始化') }}</span>
+                <i class="bi bi-arrow-right text-muted mx-2"></i>
+                <span class="status-pill status-primary">{{ opportunity_stage_labels.get(log.to_stage, log.to_stage) }}</span>
+              </td>
+              <td class="text-muted">{{ log.note or '-' }}</td>
+            </tr>
+            {% else %}
+            <tr><td colspan="4" class="text-muted text-center py-5">暂无阶段流转记录</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- 关联合同 Tab -->
+  <div class="tab-pane fade" id="tab-contracts">
+    <div class="modern-card crm-content-card">
+      <div class="table-responsive">
+        <table class="table table-hover table-modern">
+          <thead><tr><th style="width: 60px;">序号</th><th>合同编号</th><th>金额</th><th>状态</th></tr></thead>
+          <tbody>
+            {% for c in linked_contracts %}
+            <tr>
+              <td class="text-muted">{{ loop.index }}</td>
+              <td><a href="{{ url_for('contract_detail', contract_id=c.id) }}" class="text-main fw-medium text-decoration-none">{{ c.contract_no }}</a></td>
+              <td class="text-primary fw-medium">¥ {{ c.amount }}</td>
+              <td><span class="status-pill status-muted">{{ contract_status_labels.get(c.status, c.status) }}</span></td>
+            </tr>
+            {% else %}
+            <tr><td colspan="4" class="text-muted text-center py-5">该商机暂未关联合同</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+</div>
+
+{% if can('opportunity', 'manage') and o.stage not in ('won','lost') and not pending_won %}
+<div class="modal fade" id="opportunityApprovalModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-centered">
+    <div class="modal-content entity-modal crm-approval-modal">
+      <div class="modal-header border-bottom">
+        <div>
+          <h5 class="modal-title fs-6 fw-bold">提交赢单审批</h5>
+          <div class="text-muted small">申请人填写审批人和说明后提交到审批中心</div>
+        </div>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <form method="post" action="{{ url_for('submit_opportunity_won_approval', opportunity_id=o.id) }}">
+        <div class="modal-body p-4">
+          <div class="crm-approval-summary-grid mb-4">
+            <div class="crm-approval-summary-item">
+              <div class="crm-note">商机名称</div>
+              <div class="fw-semibold text-main">{{ o.title }}</div>
+            </div>
+            <div class="crm-approval-summary-item">
+              <div class="crm-note">客户名称</div>
+              <div class="fw-semibold text-main">{{ o.customer_name }}</div>
+            </div>
+            <div class="crm-approval-summary-item">
+              <div class="crm-note">当前阶段</div>
+              <div class="fw-semibold text-main">{{ opportunity_stage_labels.get(o.stage, o.stage or '-') }}</div>
+            </div>
+            <div class="crm-approval-summary-item">
+              <div class="crm-note">预计金额</div>
+              <div class="fw-semibold text-main">¥ {{ "%.2f"|format(o.amount) }}</div>
+            </div>
+          </div>
+          <div class="mb-4">
+            <label class="form-label required">审批人</label>
+            <div class="crm-person-picker" data-person-options='{{ approval_candidates|tojson }}'>
+              <input type="hidden" name="approver_user_id" class="crm-person-picker-id" value="">
+              <input type="hidden" name="approver" class="crm-person-picker-value" value="">
+              <div class="position-relative">
+                <input type="text" class="form-control crm-person-picker-input" placeholder="输入姓名或账号搜索审批人" autocomplete="off" required>
+                <div class="list-group shadow-sm crm-person-picker-dropdown d-none"></div>
+              </div>
+            </div>
+          </div>
+          <div>
+            <label class="form-label">说明情况</label>
+            <textarea name="apply_note" class="form-control" rows="4" placeholder="请填写本次赢单审批的背景、进展和说明。"></textarea>
+          </div>
+        </div>
+        <div class="modal-footer border-top bg-light">
+          <button type="button" class="btn btn-light" data-bs-dismiss="modal">取消</button>
+          <button type="submit" class="btn btn-success px-4">提交审批</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+</div>
+{% endblock %}

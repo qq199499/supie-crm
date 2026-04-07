@@ -1,0 +1,273 @@
+<div class="crm-toolbar-card">
+  <div class="crm-toolbar-form mb-0">
+    <div class="row g-3 align-items-end">
+      <div class="col-12 col-lg-8">
+        <div class="crm-toolbar-note mt-0">
+          这里集中管理项目任务。新建任务使用弹窗录入，保存后会回到当前页面并出现在列表中。
+        </div>
+      </div>
+      <div class="col-12 col-lg-auto ms-lg-auto d-flex gap-2 justify-content-lg-end">
+        {% if can('project', 'manage') %}
+        <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#createTaskModal">
+          <i class="bi bi-plus-lg me-1"></i>新建任务
+        </button>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="crm-data-card">
+  <div class="crm-section-head">
+    <div class="crm-section-head-main">
+      <div class="crm-section-head-label">任务协同</div>
+      <h5 class="crm-section-title">任务列表</h5>
+      <div class="crm-section-meta">按负责人、优先级、状态和计划完成时间查看当前任务执行情况。</div>
+    </div>
+  </div>
+
+  <div class="table-responsive table-shell">
+    <table class="table table-hover table-modern table-sm">
+      <thead>
+        <tr>
+          <th style="width: 60px;">序号</th>
+          <th>任务名称</th>
+          <th>负责人</th>
+          <th>优先级</th>
+          <th>状态</th>
+          <th style="min-width: 140px;">进度</th>
+          <th>计划完成</th>
+          <th>前置任务</th>
+          <th>阻塞原因</th>
+          <th>附件</th>
+          <th style="width: 120px;">操作</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for t in tasks %}
+        {% set can_edit_task = can('project', 'manage') or (can('implementation', 'manage') and t.assignee|string|trim|lower in current_user_identity_values) %}
+        <tr>
+          <td class="text-muted">{{ loop.index }}</td>
+          <td>
+            <div class="crm-cell-title">{{ t.title }}</div>
+            {% if t.blocked_reason %}
+            <div class="crm-cell-meta text-danger">{{ t.blocked_reason }}</div>
+            {% endif %}
+          </td>
+          <td>{{ t.assignee }}</td>
+          <td>
+            {% if t.priority == 'high' %}
+            <span class="status-pill status-danger">高</span>
+            {% elif t.priority == 'medium' %}
+            <span class="status-pill status-warning">中</span>
+            {% else %}
+            <span class="status-pill status-muted">低</span>
+            {% endif %}
+          </td>
+          <td>
+            {% if t.status == 'done' %}
+            <span class="status-pill status-success">已完成</span>
+            {% elif t.status == 'doing' %}
+            <span class="status-pill status-primary">进行中</span>
+            {% elif t.status == 'blocked' %}
+            <span class="status-pill status-danger">阻塞</span>
+            {% else %}
+            <span class="status-pill status-muted">待开始</span>
+            {% endif %}
+          </td>
+          <td>
+            <div class="d-flex align-items-center gap-2">
+              <div class="progress flex-grow-1" style="height: 6px; background-color: #F2F3F5;">
+                <div class="progress-bar {% if t.progress == 100 %}bg-success{% else %}bg-primary{% endif %}" style="width: {{ t.progress }}%"></div>
+              </div>
+              <span class="text-muted small">{{ t.progress }}%</span>
+            </div>
+          </td>
+          <td class="text-muted small">{% if t.planned_end %}{{ (t.planned_end|string)[:10] }}{% else %}—{% endif %}</td>
+          <td class="text-muted small">
+            {% if t.depends_on_task_id %}
+            {{ task_title_by_id.get(t.depends_on_task_id|int, '—') }}
+            {% if task_pred_pending.get(t.id|int) %}
+            <div class="mt-1"><span class="status-pill status-warning">前置未完成</span></div>
+            {% endif %}
+            {% else %}
+            —
+            {% endif %}
+          </td>
+          <td class="text-muted small">{{ t.blocked_reason or '—' }}</td>
+          <td>
+            {% set task_attachments = task_attachments_by_id.get(t.id|int, []) %}
+            <div class="d-flex gap-1 flex-wrap align-items-center">
+              <button type="button" class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#uploadAttachmentModal" data-attachment-target-type="task" data-attachment-target-id="{{ t.id }}" data-attachment-target-name="{{ t.title }}">上传</button>
+              <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#attachmentListModal" data-attachment-scope="task" data-attachment-scope-id="{{ t.id }}" data-attachment-target-type="task" data-attachment-target-name="{{ t.title }}">查看</button>
+              <span class="text-muted small">{{ task_attachments|length }} 个</span>
+            </div>
+          </td>
+          <td>
+            <div class="crm-row-actions gap-3 justify-content-end align-items-center">
+              {% if can_edit_task %}
+              <button class="border-0 bg-transparent p-0 text-primary small fw-medium" type="button" data-bs-toggle="collapse" data-bs-target="#task-edit-{{ t.id }}">编辑</button>
+              {% endif %}
+              {% if can('project', 'manage') %}
+              <form method="post" action="{{ url_for('delete_task', task_id=t.id) }}" onsubmit="return confirm('确认删除该任务吗？');" class="d-inline">
+                <button type="submit" class="border-0 bg-transparent p-0 text-danger small fw-medium">删除</button>
+              </form>
+              {% endif %}
+            </div>
+          </td>
+        </tr>
+        <tr class="collapse" id="task-edit-{{ t.id }}">
+          <td colspan="11" class="p-3 bg-light border-0">
+            <form method="post" action="{{ url_for('update_task', task_id=t.id) }}" class="row g-3 m-0">
+              <div class="col-md-4">
+                <label class="form-label">任务名称</label>
+                <input type="text" name="title" class="form-control" value="{{ t.title }}" required>
+              </div>
+              <div class="col-md-2">
+                <label class="form-label">负责人</label>
+                <div class="crm-person-picker" data-person-options='{{ project_member_options|tojson }}'>
+                  <input type="hidden" name="assignee_user_id" class="crm-person-picker-id" value="">
+                  <input type="hidden" name="assignee" class="crm-person-picker-value" value="{{ t.assignee }}">
+                  <div class="position-relative">
+                    <input type="text" class="form-control crm-person-picker-input" value="{{ t.assignee }}" autocomplete="off" placeholder="输入姓名或账号搜索项目成员" required>
+                    <div class="list-group shadow-sm crm-person-picker-dropdown d-none"></div>
+                  </div>
+                </div>
+              </div>
+              <div class="col-md-2">
+                <label class="form-label">优先级</label>
+                <select name="priority" class="form-select">
+                  <option value="high" {% if t.priority == 'high' %}selected{% endif %}>高</option>
+                  <option value="medium" {% if t.priority == 'medium' %}selected{% endif %}>中</option>
+                  <option value="low" {% if t.priority == 'low' %}selected{% endif %}>低</option>
+                </select>
+              </div>
+              <div class="col-md-2">
+                <label class="form-label">状态</label>
+                <select name="status" class="form-select">
+                  <option value="todo" {% if t.status == 'todo' %}selected{% endif %}>待开始</option>
+                  <option value="doing" {% if t.status == 'doing' %}selected{% endif %}>进行中</option>
+                  <option value="done" {% if t.status == 'done' %}selected{% endif %}>已完成</option>
+                  <option value="blocked" {% if t.status == 'blocked' %}selected{% endif %}>阻塞</option>
+                </select>
+              </div>
+              <div class="col-md-2">
+                <label class="form-label">进度 %</label>
+                <input type="number" min="0" max="100" name="progress" class="form-control" value="{{ t.progress }}">
+              </div>
+              <div class="col-md-3">
+                <label class="form-label">计划完成日</label>
+                <input type="date" name="planned_end" class="form-control" value="{% if t.planned_end %}{{ (t.planned_end|string)[:10] }}{% endif %}">
+              </div>
+              <div class="col-md-5">
+                <label class="form-label">前置任务</label>
+                <select name="depends_on_task_id" class="form-select">
+                  <option value="">无前置</option>
+                  {% for ot in tasks %}
+                  {% if ot.id != t.id %}
+                  <option value="{{ ot.id }}" {% if t.depends_on_task_id and (t.depends_on_task_id|int) == (ot.id|int) %}selected{% endif %}>{{ ot.title }}</option>
+                  {% endif %}
+                  {% endfor %}
+                </select>
+              </div>
+              <div class="col-md-4">
+                <label class="form-label">阻塞原因</label>
+                <input type="text" name="blocked_reason" class="form-control" value="{{ t.blocked_reason or '' }}" placeholder="阻塞时填写">
+              </div>
+              <div class="col-12 text-end">
+                {% if can_edit_task %}
+                <button type="submit" class="btn btn-primary px-4">保存任务</button>
+                {% else %}
+                <span class="text-muted small">仅负责人可编辑该任务。</span>
+                {% endif %}
+              </div>
+            </form>
+          </td>
+        </tr>
+        {% else %}
+        <tr>
+          <td colspan="11" class="text-center py-5">
+            <div class="crm-empty-state empty-state">
+              <i class="bi bi-inbox fs-1 text-muted d-block mb-3"></i>
+              <div class="text-main fw-medium">暂无任务</div>
+              <div class="text-muted small mt-1">点击右上角“新建任务”开始安排执行事项。</div>
+            </div>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div class="modal fade" id="createTaskModal" tabindex="-1">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content entity-modal">
+      <div class="modal-header border-bottom">
+        <h5 class="modal-title fs-6 fw-bold">新建任务</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <form method="post" action="{{ url_for('create_task', project_id=project.id) }}">
+        <div class="modal-body p-4 row g-3">
+          <div class="col-12">
+            <label class="form-label required">任务名称</label>
+            <input name="title" class="form-control" placeholder="请输入任务名称" required>
+          </div>
+          <div class="col-md-4">
+            <label class="form-label required">负责人</label>
+            <div class="crm-person-picker" data-person-options='{{ project_member_options|tojson }}'>
+              <input type="hidden" name="assignee_user_id" class="crm-person-picker-id" value="">
+              <input type="hidden" name="assignee" class="crm-person-picker-value" value="">
+              <div class="position-relative">
+                <input type="text" class="form-control crm-person-picker-input" placeholder="输入姓名或账号搜索项目成员" autocomplete="off" required>
+                <div class="list-group shadow-sm crm-person-picker-dropdown d-none"></div>
+              </div>
+            </div>
+          </div>
+          <div class="col-md-2">
+            <label class="form-label">优先级</label>
+            <select name="priority" class="form-select">
+              <option value="high">高</option>
+              <option value="medium" selected>中</option>
+              <option value="low">低</option>
+            </select>
+          </div>
+          <div class="col-md-2">
+            <label class="form-label">状态</label>
+            <select name="status" class="form-select">
+              <option value="todo">待开始</option>
+              <option value="doing">进行中</option>
+              <option value="done">已完成</option>
+              <option value="blocked">阻塞</option>
+            </select>
+          </div>
+          <div class="col-md-2">
+            <label class="form-label">进度 %</label>
+            <input type="number" min="0" max="100" name="progress" value="0" class="form-control">
+          </div>
+          <div class="col-md-4">
+            <label class="form-label">计划完成日</label>
+            <input type="date" name="planned_end" class="form-control">
+          </div>
+          <div class="col-md-8">
+            <label class="form-label">前置任务</label>
+            <select name="depends_on_task_id" class="form-select">
+              <option value="">无</option>
+              {% for ot in tasks %}
+              <option value="{{ ot.id }}">{{ ot.title }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="col-12">
+            <label class="form-label">阻塞原因</label>
+            <input name="blocked_reason" class="form-control" placeholder="阻塞时填写">
+          </div>
+        </div>
+        <div class="modal-footer border-top bg-light">
+          <button type="button" class="btn btn-light" data-bs-dismiss="modal">取消</button>
+          <button type="submit" class="btn btn-primary px-4">保存任务</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>

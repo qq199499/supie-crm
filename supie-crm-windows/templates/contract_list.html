@@ -1,0 +1,320 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="crm-page-head">
+  <div class="crm-page-head-main">
+    <h4 class="crm-page-title">合同管理</h4>
+  </div>
+</div>
+
+<div class="crm-toolbar-card">
+  <form method="get" class="crm-toolbar-form mb-0">
+    <div class="crm-toolbar-item is-wide">
+      <label class="form-label">关键词</label>
+      <input type="text" name="q" class="form-control" value="{{ filter_q or '' }}" placeholder="搜索合同编号 / 客户 / 项目 / 商机">
+    </div>
+    <div class="crm-toolbar-item">
+      <label class="form-label">合同状态</label>
+      <select name="status" class="form-select">
+        <option value="">全部状态</option>
+        <option value="draft" {% if filter_status == 'draft' %}selected{% endif %}>草拟</option>
+        <option value="signed" {% if filter_status == 'signed' %}selected{% endif %}>已签约</option>
+        <option value="executing" {% if filter_status == 'executing' %}selected{% endif %}>执行中</option>
+        <option value="closed" {% if filter_status == 'closed' %}selected{% endif %}>已归档</option>
+      </select>
+    </div>
+    <div class="crm-toolbar-item">
+      <label class="form-label">所属客户</label>
+      <select name="customer_id" class="form-select">
+        <option value="">全部客户</option>
+        {% for c in customers %}
+        <option value="{{ c.id }}" {% if filter_customer_id == c.id %}selected{% endif %}>{{ c.name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="crm-toolbar-actions">
+      <button type="submit" class="btn btn-primary">查询</button>
+      <a href="{{ url_for('contract_list') }}" class="btn btn-light">重置</a>
+    </div>
+  </form>
+</div>
+
+<div class="crm-data-card">
+  <div class="crm-section-head">
+    <div class="crm-section-head-main">
+      <div class="crm-section-head-label text-uppercase small text-muted">合同概览</div>
+      <h5 class="crm-section-title">合同列表</h5>
+    </div>
+    <div class="crm-section-actions">
+      <form method="get" class="d-inline-flex align-items-center gap-2 m-0">
+        <input type="hidden" name="q" value="{{ filter_q or '' }}">
+        <input type="hidden" name="status" value="{{ filter_status or '' }}">
+        <input type="hidden" name="customer_id" value="{{ filter_customer_id or '' }}">
+        <label class="text-muted small mb-0">每页</label>
+        <select name="per_page" class="form-select form-select-sm" style="width: 90px;" onchange="this.form.submit()">
+          {% for size in [15, 50, 100] %}
+          <option value="{{ size }}" {% if per_page == size %}selected{% endif %}>{{ size }}</option>
+          {% endfor %}
+        </select>
+        <noscript><button type="submit" class="btn btn-sm btn-light">切换</button></noscript>
+      </form>
+      <a class="btn btn-light text-primary" href="{{ url_for('contract_list_export', q=filter_q, status=filter_status, customer_id=filter_customer_id) }}">
+        <i class="bi bi-download me-1"></i>导出
+      </a>
+      {% if can('contract', 'manage') %}
+      <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#createContractModal">
+        <i class="bi bi-plus-lg me-1"></i>新增合同
+      </button>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="table-responsive table-shell">
+    <table class="table table-hover table-modern table-sm">
+      <thead>
+        <tr>
+          <th style="width: 60px;">序号</th>
+          <th>合同编号</th>
+          <th>客户 / 项目</th>
+          <th>合同金额</th>
+          <th>签约日期</th>
+          <th>状态</th>
+          <th style="width: 180px;">操作</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for c in contracts %}
+        <tr>
+          <td class="text-muted">{{ loop.index }}</td>
+          <td>
+            <a class="crm-cell-title text-decoration-none" href="{{ url_for('contract_detail', contract_id=c.id) }}">{{ c.contract_no }}</a>
+          </td>
+          <td>
+            <div class="crm-cell-title">{{ c.customer_name }}</div>
+            <div class="crm-cell-meta">{{ c.project_name or "未关联项目" }}</div>
+          </td>
+          <td class="text-primary fw-medium">{{ c.currency or 'CNY' }} {{ c.amount }}</td>
+          <td class="text-muted">{{ c.sign_date or "未定" }}</td>
+          <td>
+            {% if c.status == 'signed' %}<span class="status-pill status-success"><i class="bi bi-check-circle-fill"></i> {{ contract_status_labels.get(c.status) }}</span>
+            {% elif c.status == 'executing' %}<span class="status-pill status-primary"><i class="bi bi-play-circle-fill"></i> {{ contract_status_labels.get(c.status) }}</span>
+            {% elif c.status == 'draft' %}<span class="status-pill status-muted"><i class="bi bi-file-earmark"></i> {{ contract_status_labels.get(c.status) }}</span>
+            {% else %}<span class="status-pill status-warning">{{ contract_status_labels.get(c.status, c.status) }}</span>{% endif %}
+          </td>
+          <td>
+            <div class="crm-row-actions gap-3 align-items-center justify-content-end">
+              <a href="{{ url_for('contract_detail', contract_id=c.id) }}" class="text-primary text-decoration-none small fw-medium">详情</a>
+              {% if c.status == 'draft' and can('contract', 'manage') %}
+              <button type="button" class="border-0 bg-transparent p-0 text-primary small fw-medium js-open-contract-approval" data-contract-id="{{ c.id }}" data-contract-no="{{ c.contract_no }}" data-contract-customer="{{ c.customer_name }}" data-contract-amount="{{ c.currency or 'CNY' }} {{ c.amount }}" data-contract-status="{{ contract_status_labels.get(c.status, c.status) }}" data-contract-opportunity="{{ c.opportunity_title or '未关联商机' }}" data-bs-toggle="modal" data-bs-target="#contractApprovalModal">提审批</button>
+              {% endif %}
+              {% if can('contract', 'manage') %}
+              <form method="post" action="{{ url_for('delete_contract', contract_id=c.id) }}" onsubmit="return confirm('确认删除该合同吗？');" class="d-inline">
+                <button type="submit" class="border-0 bg-transparent p-0 text-danger small fw-medium">删除</button>
+              </form>
+              {% endif %}
+            </div>
+          </td>
+        </tr>
+        {% else %}
+        <tr>
+          <td colspan="7" class="text-center py-5">
+            <div class="crm-empty-state empty-state">
+              <i class="bi bi-inbox fs-1 text-muted d-block mb-3"></i>
+              <div class="text-main fw-medium">暂无合同数据</div>
+              <div class="text-muted small mt-1">可通过右上角新增合同开始录入。</div>
+            </div>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% if total_pages > 1 %}
+  <div class="d-flex justify-content-center mt-4">
+    <nav>
+      <ul class="pagination pagination-sm m-0">
+        <li class="page-item {% if page == 1 %}disabled{% endif %}">
+          <a class="page-link" href="{{ url_for('contract_list', q=filter_q, status=filter_status, customer_id=filter_customer_id, per_page=per_page, page=page-1) }}">上一页</a>
+        </li>
+        <li class="page-item disabled"><span class="page-link">{{ page }} / {{ total_pages }}</span></li>
+        <li class="page-item {% if page == total_pages %}disabled{% endif %}">
+          <a class="page-link" href="{{ url_for('contract_list', q=filter_q, status=filter_status, customer_id=filter_customer_id, per_page=per_page, page=page+1) }}">下一页</a>
+        </li>
+      </ul>
+    </nav>
+  </div>
+  {% endif %}
+</div>
+
+<div class="modal fade" id="contractApprovalModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-centered">
+    <div class="modal-content entity-modal crm-approval-modal">
+      <div class="modal-header border-bottom">
+        <div>
+          <h5 class="modal-title fs-6 fw-bold" id="contractApprovalModalTitle">提交签约审批</h5>
+          <div class="text-muted small">从列表中直接发起审批，自动带出合同摘要</div>
+        </div>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <form method="post" id="contractApprovalModalForm" action="{{ url_for('submit_contract_sign_approval', contract_id=0) }}">
+        <div class="modal-body p-4">
+          <div class="crm-approval-summary-grid mb-4">
+            <div class="crm-approval-summary-item">
+              <div class="crm-note">合同编号</div>
+              <div class="fw-semibold text-main" id="contractApprovalNo">-</div>
+            </div>
+            <div class="crm-approval-summary-item">
+              <div class="crm-note">客户名称</div>
+              <div class="fw-semibold text-main" id="contractApprovalCustomer">-</div>
+            </div>
+            <div class="crm-approval-summary-item">
+              <div class="crm-note">合同金额</div>
+              <div class="fw-semibold text-main" id="contractApprovalAmount">-</div>
+            </div>
+            <div class="crm-approval-summary-item">
+              <div class="crm-note">关联商机</div>
+              <div class="fw-semibold text-main" id="contractApprovalOpportunity">-</div>
+            </div>
+          </div>
+          <div class="mb-4">
+            <label class="form-label required">审批人</label>
+            <div class="crm-person-picker" data-person-options='{{ approval_candidates|tojson }}'>
+              <input type="hidden" name="approver_user_id" class="crm-person-picker-id" value="">
+              <input type="hidden" name="approver" class="crm-person-picker-value" value="">
+              <div class="position-relative">
+                <input type="text" class="form-control crm-person-picker-input" placeholder="输入姓名或账号搜索审批人" autocomplete="off" required>
+                <div class="list-group shadow-sm crm-person-picker-dropdown d-none"></div>
+              </div>
+            </div>
+          </div>
+          <div>
+            <label class="form-label">说明情况</label>
+            <textarea name="apply_note" class="form-control" rows="4" placeholder="请补充合同签约背景与审批说明。"></textarea>
+          </div>
+        </div>
+        <div class="modal-footer border-top bg-light">
+          <button type="button" class="btn btn-light" data-bs-dismiss="modal">取消</button>
+          <button type="submit" class="btn btn-success px-4">提交审批</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+{% if can('contract', 'manage') %}
+<div class="modal fade" id="createContractModal" tabindex="-1">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content entity-modal">
+      <div class="modal-header border-bottom">
+        <h5 class="modal-title fs-6 fw-bold">新增合同</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <form method="post">
+        <div class="modal-body p-4 row g-3">
+          <div class="col-12">
+            <label class="form-label required">合同编号</label>
+            <input name="contract_no" class="form-control" placeholder="请输入唯一合同编号" required>
+          </div>
+          <div class="col-12">
+            <label class="form-label required">关联客户</label>
+            <select name="customer_id" class="form-select" required>
+              <option value="">请选择...</option>
+              {% for c in customers %}
+              <option value="{{ c.id }}">{{ c.name }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="col-12">
+            <label class="form-label">关联商机</label>
+            <select name="opportunity_id" class="form-select">
+              <option value="">暂不关联商机</option>
+              {% for o in opportunities %}
+              <option value="{{ o.id }}">{{ o.customer_name }} — {{ o.title }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="col-12">
+            <label class="form-label">关联项目</label>
+            <select name="project_id" class="form-select">
+              <option value="">暂不关联项目</option>
+              {% for p in projects %}
+              <option value="{{ p.id }}">{{ p.name }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="col-md-6">
+            <label class="form-label">合同金额</label>
+            <input type="number" step="0.01" name="amount" class="form-control" placeholder="0.00">
+          </div>
+          <div class="col-md-3">
+            <label class="form-label">币种</label>
+            <input name="currency" class="form-control" value="CNY">
+          </div>
+          <div class="col-md-3">
+            <label class="form-label">当前状态</label>
+            <select name="status" class="form-select">
+              <option value="draft">草拟</option>
+              <option value="signed">已签约</option>
+              <option value="executing">执行中</option>
+              <option value="closed">已归档</option>
+            </select>
+          </div>
+          <div class="col-md-4">
+            <label class="form-label">负责人</label>
+            <div class="crm-person-picker" data-source-url="{{ url_for('api_users_search') }}">
+              <input type="hidden" name="owner_user_id" class="crm-person-picker-id" value="">
+              <input type="hidden" name="owner" class="crm-person-picker-value" value="">
+              <div class="position-relative">
+                <input type="text" class="form-control crm-person-picker-input" placeholder="输入姓名或账号搜索" autocomplete="off">
+                <div class="list-group shadow-sm crm-person-picker-dropdown d-none"></div>
+              </div>
+            </div>
+          </div>
+          <div class="col-md-4">
+            <label class="form-label">签约日期</label>
+            <input type="date" name="sign_date" class="form-control">
+          </div>
+          <div class="col-md-4">
+            <label class="form-label">到期日期</label>
+            <input type="date" name="end_date" class="form-control">
+          </div>
+        </div>
+        <div class="modal-footer border-top bg-light">
+          <button type="button" class="btn btn-light" data-bs-dismiss="modal">取消</button>
+          <button type="submit" class="btn btn-primary">保存合同</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+{% block page_scripts %}
+<script>
+(function () {
+  var modal = document.getElementById('contractApprovalModal');
+  if (!modal) return;
+  var form = document.getElementById('contractApprovalModalForm');
+  var title = document.getElementById('contractApprovalModalTitle');
+  var no = document.getElementById('contractApprovalNo');
+  var customer = document.getElementById('contractApprovalCustomer');
+  var amount = document.getElementById('contractApprovalAmount');
+  var opportunity = document.getElementById('contractApprovalOpportunity');
+  document.querySelectorAll('.js-open-contract-approval').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      var contractId = btn.getAttribute('data-contract-id') || '';
+      var contractNo = btn.getAttribute('data-contract-no') || '-';
+      var contractCustomer = btn.getAttribute('data-contract-customer') || '-';
+      var contractAmount = btn.getAttribute('data-contract-amount') || '-';
+      var contractOpportunity = btn.getAttribute('data-contract-opportunity') || '-';
+      form.action = '/contracts/' + contractId + '/submit-sign-approval';
+      if (title) title.textContent = '提交签约审批 · ' + contractNo;
+      if (no) no.textContent = contractNo;
+      if (customer) customer.textContent = contractCustomer;
+      if (amount) amount.textContent = contractAmount;
+      if (opportunity) opportunity.textContent = contractOpportunity;
+    });
+  });
+})();
+</script>
+{% endblock %}
+{% endblock %}

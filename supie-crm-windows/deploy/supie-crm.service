@@ -1,0 +1,15 @@
+[Unit]
+Description=Supie CRM Service
+After=network.target
+
+[Service]
+Type=simple
+User=agent
+WorkingDirectory=/workspace/crm
+EnvironmentFile=/workspace/crm/.env
+ExecStart=/workspace/crm/scripts/service_control.sh start-foreground
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

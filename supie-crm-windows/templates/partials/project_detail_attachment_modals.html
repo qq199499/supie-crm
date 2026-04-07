@@ -1,0 +1,106 @@
+{# 附件列表 + 上传（项目详情与管理子页共用） #}
+<div class="modal fade" id="attachmentListModal" tabindex="-1" aria-labelledby="attachmentListModalTitle" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-scrollable">
+    <div class="modal-content entity-modal">
+      <div class="modal-header">
+        <h5 class="modal-title" id="attachmentListModalTitle">附件列表</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="关闭"></button>
+      </div>
+      <div class="modal-body">
+        <p class="small text-muted mb-2" id="attachmentListModalHint"></p>
+        <div class="table-responsive">
+          <table class="table table-sm align-middle mb-0" id="attachmentListModalTable">
+            <thead>
+              <tr>
+                <th class="col-seq text-center">序号</th>
+                <th>文件名</th>
+                <th>分类</th>
+                <th>上传人</th>
+                <th>上传时间</th>
+                <th>大小</th>
+                <th class="text-end">操作</th>
+              </tr>
+            </thead>
+            <tbody id="attachmentListModalBody"></tbody>
+          </table>
+        </div>
+        <div id="attachmentListModalEmpty" class="text-muted small py-4 text-center d-none">当前无附件记录</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="modal fade" id="uploadAttachmentModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content entity-modal">
+      <div class="modal-header">
+        <h5 class="modal-title">上传附件</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="关闭"></button>
+      </div>
+      <form method="post" action="{{ url_for('upload_attachment', project_id=project.id) }}" enctype="multipart/form-data">
+        <div class="modal-body">
+          <div class="row g-3">
+            <input type="hidden" name="target_type" id="attachmentTargetType" value="project">
+            <input type="hidden" name="target_id" id="attachmentTargetId" value="">
+            <div class="col-md-4">
+              <label class="form-label">分类</label>
+              <select name="category" class="form-select form-select-sm">
+                <option value="合同">合同</option>
+                <option value="方案">方案</option>
+                <option value="验收">验收</option>
+                <option value="其他">其他</option>
+              </select>
+            </div>
+            <div class="col-md-8">
+              <label class="form-label" for="attachmentFileInput">文件</label>
+              <input type="file" name="file" id="attachmentFileInput" class="form-control form-control-sm" required>
+            </div>
+            <div class="col-12 small text-muted" id="attachmentTargetHint"></div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">取消</button>
+          <button type="submit" class="btn btn-sm btn-primary px-3">上传</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<script>
+  function openProjectModal(modalId) {
+    const modalEl = document.getElementById(modalId);
+    if (!modalEl || !window.bootstrap || !bootstrap.Modal) return;
+    if (modalEl.parentElement !== document.body) {
+      document.body.appendChild(modalEl);
+    }
+    bootstrap.Modal.getOrCreateInstance(modalEl).show();
+  }
+
+  const uploadModal = document.getElementById('uploadAttachmentModal');
+  if (uploadModal) {
+    if (typeof window.attachModalStackFix === 'function') {
+      window.attachModalStackFix(uploadModal);
+    }
+    uploadModal.addEventListener('show.bs.modal', function (event) {
+      const trigger = event.relatedTarget;
+      const modal = event.target;
+      let targetType = 'project';
+      let targetId = '';
+      let targetName = '项目';
+      if (trigger && trigger.dataset) {
+        targetType = trigger.dataset.attachmentTargetType || 'project';
+        targetId = trigger.dataset.attachmentTargetId || '';
+        targetName = trigger.dataset.attachmentTargetName || '项目';
+      }
+      modal.querySelector('#attachmentTargetType').value = targetType;
+      modal.querySelector('#attachmentTargetId').value = targetId;
+      modal.querySelector('#attachmentTargetHint').textContent = `当前关联：${targetName}`;
+      modal.querySelector('.modal-title').textContent = `上传${targetType === 'task' ? '任务' : targetType === 'milestone' ? '里程碑' : '项目'}附件`;
+    });
+    uploadModal.addEventListener('hidden.bs.modal', function () {
+      const fi = uploadModal.querySelector('input[type="file"][name="file"]');
+      if (fi) fi.value = '';
+    });
+  }
+</script>

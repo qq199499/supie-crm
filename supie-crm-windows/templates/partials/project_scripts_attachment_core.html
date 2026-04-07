@@ -1,0 +1,150 @@
+<script>
+  window.__crmAttachmentLists = {
+    project: {{ project_attachments_public|tojson }},
+    tasks: {{ task_attachments_public_by_id|tojson }},
+    milestones: {{ milestone_attachments_public_by_id|tojson }},
+  };
+  function resolveAttachmentItems(scope, scopeId) {
+    var lists = window.__crmAttachmentLists || {};
+    function bucket(map, key) {
+      if (!map || typeof map !== 'object') return null;
+      var k = key != null && key !== '' ? String(key).trim() : '';
+      if (!k) return null;
+      if (Array.isArray(map[k])) return map[k];
+      var found = Object.keys(map).find(function (x) { return String(x) === k; });
+      return found != null && Array.isArray(map[found]) ? map[found] : null;
+    }
+    if (scope === 'project') {
+      return Array.isArray(lists.project) ? lists.project : [];
+    }
+    if (scope === 'task') {
+      var bt = bucket(lists.tasks, scopeId);
+      return bt || [];
+    }
+    if (scope === 'milestone') {
+      var bm = bucket(lists.milestones, scopeId);
+      return bm || [];
+    }
+    return [];
+  }
+</script>
+<script>
+(function () {
+  var modalEl = document.getElementById('attachmentListModal');
+  if (!modalEl || !window.bootstrap) return;
+  var downloadTpl = {{ url_for('download_attachment', attachment_id=0)|tojson }};
+  var deleteTpl = {{ url_for('delete_attachment', attachment_id=0)|tojson }};
+  var canManage = {{ can('project', 'manage')|tojson }};
+
+  function attachModalStackFix(el) {
+    if (!el) return;
+    el.addEventListener('shown.bs.modal', function () {
+      var modals = document.querySelectorAll('.modal.show');
+      var backs = document.querySelectorAll('.modal-backdrop');
+      if (modals.length <= 1 || backs.length <= 1) return;
+      var stack = modals.length - 1;
+      el.style.zIndex = String(1055 + stack * 10);
+      backs[backs.length - 1].style.zIndex = String(1050 + stack * 10);
+    });
+    el.addEventListener('hidden.bs.modal', function () {
+      el.style.removeProperty('z-index');
+    });
+  }
+  attachModalStackFix(modalEl);
+  modalEl.addEventListener('hidden.bs.modal', function () {
+    delete modalEl.dataset.pendingScope;
+    delete modalEl.dataset.pendingScopeId;
+    delete modalEl.dataset.pendingTargetType;
+    delete modalEl.dataset.pendingTargetName;
+  });
+  window.attachModalStackFix = attachModalStackFix;
+  var uploadAttachmentModalEl = document.getElementById('uploadAttachmentModal');
+  if (uploadAttachmentModalEl) {
+    attachModalStackFix(uploadAttachmentModalEl);
+  }
+
+  document.addEventListener(
+    'click',
+    function (e) {
+      var btn = e.target.closest('[data-bs-target="#attachmentListModal"]');
+      if (!btn || !modalEl) return;
+      var sc = btn.getAttribute('data-attachment-scope') || 'project';
+      modalEl.dataset.pendingScope = sc;
+      var sid = btn.getAttribute('data-attachment-scope-id');
+      if (sid !== null && sid !== '') modalEl.dataset.pendingScopeId = sid;
+      else delete modalEl.dataset.pendingScopeId;
+      var t = btn.getAttribute('data-attachment-target-type');
+      if (t) modalEl.dataset.pendingTargetType = t;
+      var n = btn.getAttribute('data-attachment-target-name');
+      if (n) modalEl.dataset.pendingTargetName = n;
+    },
+    true
+  );
+
+  function buildUrl(tpl, id) {
+    return tpl.replace('0', String(id));
+  }
+  function esc(s) {
+    var d = document.createElement('div');
+    d.textContent = s == null ? '' : String(s);
+    return d.innerHTML;
+  }
+  modalEl.addEventListener('show.bs.modal', function (event) {
+    var btn = event.relatedTarget;
+    var titleEl = document.getElementById('attachmentListModalTitle');
+    var hintEl = document.getElementById('attachmentListModalHint');
+    var tbody = document.getElementById('attachmentListModalBody');
+    var emptyEl = document.getElementById('attachmentListModalEmpty');
+    var tableEl = document.getElementById('attachmentListModalTable');
+    if (!tbody || !emptyEl || !tableEl) return;
+    var scope =
+      (btn && btn.getAttribute && btn.getAttribute('data-attachment-scope')) ||
+      modalEl.dataset.pendingScope ||
+      'project';
+    var scopeId =
+      (btn && btn.getAttribute && btn.getAttribute('data-attachment-scope-id')) ||
+      modalEl.dataset.pendingScopeId ||
+      '';
+    var items = resolveAttachmentItems(scope, scopeId);
+    var type =
+      (btn && btn.getAttribute && btn.getAttribute('data-attachment-target-type')) ||
+      modalEl.dataset.pendingTargetType ||
+      'project';
+    var name =
+      (btn && btn.getAttribute && btn.getAttribute('data-attachment-target-name')) ||
+      modalEl.dataset.pendingTargetName ||
+      '';
+    var typeLabel = type === 'task' ? '任务' : type === 'milestone' ? '里程碑' : '项目';
+    if (titleEl) titleEl.textContent = '附件列表';
+    if (hintEl) {
+      hintEl.textContent = name ? '关联' + typeLabel + '：' + name + ' · 共 ' + items.length + ' 个文件' : '共 ' + items.length + ' 个文件';
+    }
+    tbody.innerHTML = '';
+    if (!items.length) {
+      emptyEl.classList.remove('d-none');
+      tableEl.classList.add('d-none');
+      return;
+    }
+    emptyEl.classList.add('d-none');
+    tableEl.classList.remove('d-none');
+    items.forEach(function (a, idx) {
+      var tr = document.createElement('tr');
+      var dl = buildUrl(downloadTpl, a.id);
+      var actions = '<a class="btn btn-sm btn-outline-primary" href="' + esc(dl) + '">下载</a>';
+      if (canManage) {
+        var du = buildUrl(deleteTpl, a.id);
+        actions += ' <form method="post" action="' + esc(du) + '" class="d-inline" onsubmit="return confirm(\'确认删除该附件吗？\');"><button type="submit" class="btn btn-sm btn-outline-danger">删除</button></form>';
+      }
+      tr.innerHTML =
+        '<td class="text-muted text-center col-seq">' + (idx + 1) + '</td>' +
+        '<td class="text-break">' + esc(a.file_name) + '</td>' +
+        '<td>' + esc(a.category) + '</td>' +
+        '<td>' + esc(a.uploaded_by) + '</td>' +
+        '<td class="text-nowrap">' + esc(a.uploaded_at) + '</td>' +
+        '<td class="text-nowrap">' + esc(a.file_size_label != null ? a.file_size_label : '—') + '</td>' +
+        '<td class="text-end text-nowrap">' + actions + '</td>';
+      tbody.appendChild(tr);
+    });
+  });
+})();
+</script>

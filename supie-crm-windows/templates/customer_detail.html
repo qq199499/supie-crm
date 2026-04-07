@@ -1,0 +1,502 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="customer-detail-page crm-detail-page">
+  <div class="crm-detail-header pb-3 mb-4 border-bottom">
+    <div class="crm-entity-head">
+      <div class="crm-entity-head-row d-flex flex-wrap align-items-start justify-content-between gap-3">
+        <div class="crm-entity-head-main d-flex gap-3">
+          <a href="{{ url_for('customer_list') }}" class="icon-btn crm-entity-back mt-1" title="返回"><i class="bi bi-arrow-left"></i></a>
+          <div>
+            <h4 class="crm-entity-title">{{ customer.name }}</h4>
+            <div class="crm-entity-subtitle mt-2 text-muted small">
+              负责人：{{ customer.owner }} | 行业：{{ customer.industry or "-" }} | 内部等级：{{ customer.level }} | 分级：{{ customer_tier_labels.get(customer.tier, customer.tier or '-') }} | 状态：{{ customer_status_labels.get(customer.status, customer.status or '-') }}
+            </div>
+          </div>
+        </div>
+        <div class="crm-detail-actions d-flex flex-wrap gap-2">
+          <a class="btn btn-light text-primary" href="{{ url_for('customer_follow_up_list', customer_id=customer.id) }}"><i class="bi bi-journal-text me-1"></i>跟进记录</a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  {% set sm = summary_metrics if summary_metrics is defined and summary_metrics else {} %}
+  {% set ns = namespace(active_opportunities=0, high_value_opportunities=0, signing_contracts=0, executing_projects=projects|length) %}
+  {% for op in opportunities %}
+    {% if op.status in ('new', 'tracking') %}
+      {% set ns.active_opportunities = ns.active_opportunities + 1 %}
+    {% endif %}
+    {% if op.status in ('new', 'tracking') and (op.amount or 0)|float >= 100000 %}
+      {% set ns.high_value_opportunities = ns.high_value_opportunities + 1 %}
+    {% endif %}
+  {% endfor %}
+  {% for ct in contracts %}
+    {% if ct.status in ('draft', 'pending') %}
+      {% set ns.signing_contracts = ns.signing_contracts + 1 %}
+    {% endif %}
+  {% endfor %}
+  {% set primary_contact = sm.get('primary_contact') %}
+  {% set active_opportunity_count = sm.get('active_opportunity_count', ns.active_opportunities) %}
+  {% set contract_total_amount = contract_amount_sum %}
+  {% set executing_project_count = sm.get('executing_project_count', ns.executing_projects) %}
+  {% set primary_contact_name = primary_contact.name if primary_contact else (contacts[0].name if contacts else '—') %}
+  {% set last_followup_at = sm.get('latest_followed_at', follow_ups[0].followed_at if follow_ups else '—') or '—' %}
+  {% set next_followup_at = sm.get('next_followup_at', '—') or '—' %}
+  {% set high_value_count = sm.get('high_value_opportunity_count', ns.high_value_opportunities) %}
+  {% set signing_contract_count = sm.get('signing_contract_count', ns.signing_contracts) %}
+  {% set is_stale = sm.get('is_stale_follow', False) %}
+
+  <div class="crm-detail-body">
+    <ul class="nav nav-tabs crm-customer-detail-tabs mb-4 border-0 gap-3" role="tablist" data-crm-tab-nav="customer">
+      <li class="nav-item">
+      <button class="nav-link crm-customer-detail-tab active" data-bs-toggle="tab" data-bs-target="#tab-overview" type="button">
+          <span class="crm-customer-detail-tab-title">客户概览</span>
+          <span class="crm-customer-detail-tab-meta">档案维护 · 商机 {{ active_opportunity_count }} · 合同 {{ contracts|length }}</span>
+        </button>
+      </li>
+      <li class="nav-item">
+      <button class="nav-link crm-customer-detail-tab" data-bs-toggle="tab" data-bs-target="#tab-contacts" type="button">
+          <span class="crm-customer-detail-tab-title">联系人</span>
+          <span class="crm-customer-detail-tab-meta">{{ contacts|length }} 位联系人 · 主联系人 {{ primary_contact_name }}</span>
+        </button>
+      </li>
+      <li class="nav-item">
+      <button class="nav-link crm-customer-detail-tab" data-bs-toggle="tab" data-bs-target="#tab-follow" type="button">
+          <span class="crm-customer-detail-tab-title">跟进动态</span>
+          <span class="crm-customer-detail-tab-meta">最近跟进 {{ last_followup_at }} · 下次跟进 {{ next_followup_at }}</span>
+        </button>
+      </li>
+    </ul>
+
+    <div class="tab-content">
+  <div class="tab-pane fade show active" id="tab-overview">
+        <div class="modern-card crm-content-card crm-detail-inline-card crm-customer-overview-card">
+          <div class="crm-customer-overview-grid">
+            <div class="crm-customer-overview-item">
+              <div class="crm-customer-overview-label">累计合同金额</div>
+              <div class="crm-customer-overview-value">¥ {{ "%.0f"|format(contract_total_amount|float) }}</div>
+            </div>
+            <div class="crm-customer-overview-item">
+              <div class="crm-customer-overview-label">活跃商机</div>
+              <div class="crm-customer-overview-value">{{ active_opportunity_count }}</div>
+            </div>
+            <div class="crm-customer-overview-item">
+              <div class="crm-customer-overview-label">执行中项目</div>
+              <div class="crm-customer-overview-value">{{ executing_project_count }}</div>
+            </div>
+            <div class="crm-customer-overview-item">
+              <div class="crm-customer-overview-label">主联系人</div>
+              <div class="crm-customer-overview-value">{{ primary_contact_name }}</div>
+            </div>
+            <div class="crm-customer-overview-item">
+              <div class="crm-customer-overview-label">最近跟进</div>
+              <div class="crm-customer-overview-value">{{ last_followup_at }}</div>
+            </div>
+            <div class="crm-customer-overview-item">
+              <div class="crm-customer-overview-label">商务状态</div>
+              <div class="crm-customer-overview-value">
+                {% if is_stale %}
+                <span class="status-pill status-warning">跟进滞后</span>
+                {% else %}
+                <span class="status-pill status-success">跟进正常</span>
+                {% endif %}
+              </div>
+              <div class="crm-customer-overview-note">高价值商机 {{ high_value_count }} · 待签合同 {{ signing_contract_count }}</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="row g-4 crm-detail-section-row">
+          <div class="col-xl-7">
+            {% if can('customer', 'manage') %}
+            <div class="modern-card crm-content-card crm-detail-inline-card crm-detail-main-card">
+              <div class="crm-section-head">
+                <div class="crm-section-head-main">
+                  <div class="crm-section-head-label">客户主数据</div>
+                  <h5 class="crm-section-title">基础信息编辑</h5>
+                  <div class="crm-section-meta">保持客户档案、分级和负责人一致，避免销售与交付信息脱节。</div>
+                </div>
+              </div>
+              <form method="post" action="{{ url_for('customer_edit', customer_id=customer.id) }}" class="row g-4">
+                <div class="col-md-6">
+                  <label class="form-label required">客户名称</label>
+                  <input name="name" class="form-control" value="{{ customer.name }}" required>
+                </div>
+                <div class="col-md-6">
+                  <label class="form-label required">负责人</label>
+                  <div class="crm-person-picker" data-source-url="{{ url_for('api_users_search') }}">
+                    <input type="hidden" name="owner_user_id" class="crm-person-picker-id" value="">
+                    <input type="hidden" name="owner" class="crm-person-picker-value" value="{{ customer.owner }}">
+                    <div class="position-relative">
+                      <input type="text" class="form-control crm-person-picker-input" value="{{ customer.owner }}" autocomplete="off" placeholder="输入姓名或账号搜索" required>
+                      <div class="list-group shadow-sm crm-person-picker-dropdown d-none"></div>
+                    </div>
+                  </div>
+                </div>
+                <div class="col-md-3">
+                  <label class="form-label">电话</label>
+                  <input name="phone" class="form-control" value="{{ customer.phone or '' }}">
+                </div>
+                <div class="col-md-3">
+                  <label class="form-label">邮箱</label>
+                  <input name="email" class="form-control" value="{{ customer.email or '' }}">
+                </div>
+                <div class="col-md-3">
+                  <label class="form-label">行业</label>
+                  <input name="industry" class="form-control" value="{{ customer.industry or '' }}">
+                </div>
+                <div class="col-md-3">
+                  <label class="form-label">内部等级</label>
+                  <select name="level" class="form-select">
+                    {% for lv in ['A','B','C'] %}
+                    <option value="{{ lv }}" {% if customer.level == lv %}selected{% endif %}>{{ lv }}级</option>
+                    {% endfor %}
+                  </select>
+                </div>
+                <div class="col-md-4">
+                  <label class="form-label">客户分级</label>
+                  <select name="tier" class="form-select">
+                    {% for k, v in customer_tier_labels.items() %}
+                    <option value="{{ k }}" {% if customer.tier == k %}selected{% endif %}>{{ v }}</option>
+                    {% endfor %}
+                  </select>
+                </div>
+                <div class="col-md-4">
+                  <label class="form-label">客户状态</label>
+                  <select name="status" class="form-select">
+                    {% for k, v in customer_status_labels.items() %}
+                    <option value="{{ k }}" {% if customer.status == k %}selected{% endif %}>{{ v }}</option>
+                    {% endfor %}
+                  </select>
+                </div>
+                <div class="col-md-4">
+                  <label class="form-label">标签</label>
+                  <input name="tags" class="form-control" value="{{ customer.tags or '' }}" placeholder="逗号分隔">
+                </div>
+                <div class="col-12 mt-4 pt-3 border-top text-end">
+                  <button type="submit" class="btn btn-primary px-4">保存信息</button>
+                </div>
+              </form>
+            </div>
+            {% endif %}
+          </div>
+          <div class="col-xl-5">
+            <div class="modern-card crm-side-card crm-detail-inline-card crm-detail-quicklinks-card">
+              <div class="crm-section-head">
+                <div class="crm-section-head-main">
+                  <div class="crm-section-head-label">快捷入口</div>
+                  <h5 class="crm-section-title">业务联动</h5>
+                  <div class="crm-section-meta">把跟进、商机、项目入口收在右侧，页面结构更稳定，也更适合快速切换。</div>
+                </div>
+              </div>
+              <div class="crm-detail-quicklinks">
+                <a class="crm-detail-quicklink" href="{{ url_for('customer_follow_up_list', customer_id=customer.id) }}"><span><i class="bi bi-journal-text me-2"></i>跟进记录</span><i class="bi bi-chevron-right"></i></a>
+                <a class="crm-detail-quicklink" href="{{ url_for('opportunity_list', customer_id=customer.id) }}"><span><i class="bi bi-lightbulb me-2"></i>本客户商机</span><i class="bi bi-chevron-right"></i></a>
+                <a class="crm-detail-quicklink" href="{{ url_for('project_manage', customer_id=customer.id) }}"><span><i class="bi bi-kanban me-2"></i>本客户项目</span><i class="bi bi-chevron-right"></i></a>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="row g-4 mt-0 crm-detail-section-row">
+          <div class="col-xl-6">
+            <div class="modern-card crm-content-card crm-detail-inline-card crm-detail-fixed-panel">
+              <div class="crm-section-head">
+                <div class="crm-section-head-main">
+                  <div class="crm-section-head-label">销售推进</div>
+                  <h5 class="crm-section-title">商机明细</h5>
+                </div>
+              </div>
+              <div class="crm-fixed-panel-scroll">
+                <div class="table-responsive">
+                  <table class="table table-modern">
+                    <thead><tr><th>商机名称</th><th>阶段</th><th>金额</th><th>状态</th></tr></thead>
+                    <tbody>
+                      {% for o in opportunities %}
+                      <tr>
+                        <td><a href="{{ url_for('opportunity_detail', opportunity_id=o.id) }}" class="text-main text-decoration-none fw-medium">{{ o.title }}</a></td>
+                        <td class="text-muted"><span class="status-pill status-muted">{{ opportunity_stage_labels.get(o.stage, o.stage or '-') }}</span></td>
+                        <td class="text-primary">¥ {{ o.amount }}</td>
+                        <td>{{ opportunity_status_labels.get(o.status, o.status) }}</td>
+                      </tr>
+                      {% else %}
+                      <tr><td colspan="4" class="text-muted text-center py-4">暂无商机</td></tr>
+                      {% endfor %}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="col-xl-6">
+            <div class="modern-card crm-content-card crm-detail-inline-card crm-detail-fixed-panel">
+              <div class="crm-section-head">
+                <div class="crm-section-head-main">
+                  <div class="crm-section-head-label">商务签约</div>
+                  <h5 class="crm-section-title">合同明细</h5>
+                </div>
+              </div>
+              <div class="crm-fixed-panel-scroll">
+                <div class="table-responsive">
+                  <table class="table table-modern">
+                    <thead><tr><th>合同编号</th><th>金额</th><th>状态</th></tr></thead>
+                    <tbody>
+                      {% for c in contracts %}
+                      <tr>
+                        <td><a href="{{ url_for('contract_detail', contract_id=c.id) }}" class="text-main text-decoration-none fw-medium">{{ c.contract_no }}</a></td>
+                        <td class="text-primary">¥ {{ c.amount }}</td>
+                        <td>{{ contract_status_labels.get(c.status, c.status) }}</td>
+                      </tr>
+                      {% else %}
+                      <tr><td colspan="3" class="text-muted text-center py-4">暂无合同</td></tr>
+                      {% endfor %}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+  <!-- 联系人 Tab -->
+  <div class="tab-pane fade" id="tab-contacts">
+    <div class="modern-card crm-content-card">
+      <div class="d-flex justify-content-between align-items-center mb-4">
+        <h5 class="section-title m-0">联系人列表</h5>
+      </div>
+      <div class="table-responsive">
+        <table class="table table-hover table-modern">
+          <thead><tr><th style="width: 60px;">序号</th><th>姓名</th><th>职位</th><th>手机</th><th>邮箱</th><th>主联系人</th><th>操作</th></tr></thead>
+          <tbody>
+            {% for ct in contacts %}
+            <tr>
+              <td class="text-muted">{{ loop.index }}</td>
+              <td class="fw-medium text-main">{{ ct.name }}</td>
+              <td>{{ ct.title or "—" }}</td>
+              <td>{{ ct.phone or "—" }}</td>
+              <td>{{ ct.email or "—" }}</td>
+              <td>
+                {% if ct.is_primary %}<span class="status-pill status-primary">是</span>{% else %}<span class="text-muted">否</span>{% endif %}
+              </td>
+              <td>
+                <div class="actions d-flex gap-2">
+                  {% if can('customer', 'manage') %}
+                  <button class="btn btn-link text-primary p-0 border-0 text-decoration-none small" type="button" data-bs-toggle="collapse" data-bs-target="#edit-c-{{ ct.id }}">编辑</button>
+                  <form method="post" action="{{ url_for('customer_contact_delete', customer_id=customer.id, contact_id=ct.id) }}" class="m-0" onsubmit="return confirm('删除该联系人？');">
+                    <button class="btn btn-link text-danger p-0 border-0 text-decoration-none small">删除</button>
+                  </form>
+                  {% endif %}
+                </div>
+              </td>
+            </tr>
+            {% if can('customer', 'manage') %}
+            <tr class="collapse" id="edit-c-{{ ct.id }}">
+              <td colspan="7" class="p-3 bg-light rounded border-0">
+                <form method="post" action="{{ url_for('customer_contact_edit', customer_id=customer.id, contact_id=ct.id) }}" class="row g-3 m-0">
+                  <div class="col-md-3"><input name="name" class="form-control" value="{{ ct.name }}" required placeholder="姓名"></div>
+                  <div class="col-md-3"><input name="title" class="form-control" value="{{ ct.title or '' }}" placeholder="职位"></div>
+                  <div class="col-md-3"><input name="phone" class="form-control" value="{{ ct.phone or '' }}" placeholder="手机"></div>
+                  <div class="col-md-3"><input name="email" class="form-control" value="{{ ct.email or '' }}" placeholder="邮箱"></div>
+                  <div class="col-md-6"><input name="note" class="form-control" value="{{ ct.note or '' }}" placeholder="备注"></div>
+                  <div class="col-md-4 d-flex align-items-center">
+                    <div class="form-check form-switch m-0">
+                      <input class="form-check-input" type="checkbox" role="switch" name="is_primary" value="1" id="ep{{ ct.id }}" {% if ct.is_primary %}checked{% endif %}>
+                      <label class="form-check-label text-muted" for="ep{{ ct.id }}">设为主联系人</label>
+                    </div>
+                  </div>
+                  <div class="col-md-2 text-end">
+                    <button type="submit" class="btn btn-primary px-4">保存</button>
+                  </div>
+                </form>
+              </td>
+            </tr>
+            {% endif %}
+            {% else %}
+            <tr><td colspan="7" class="text-muted text-center py-4">暂无联系人。</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      
+      {% if can('customer', 'manage') %}
+      <hr class="my-4 border-light">
+      <h5 class="section-title mb-4">新增联系人</h5>
+      <form method="post" action="{{ url_for('customer_contact_add', customer_id=customer.id) }}" class="row g-3">
+        <div class="col-md-3"><input name="name" class="form-control" placeholder="姓名 *" required></div>
+        <div class="col-md-3"><input name="title" class="form-control" placeholder="职位"></div>
+        <div class="col-md-3"><input name="phone" class="form-control" placeholder="手机"></div>
+        <div class="col-md-3"><input name="email" class="form-control" placeholder="邮箱"></div>
+        <div class="col-md-6"><input name="note" class="form-control" placeholder="备注"></div>
+        <div class="col-md-4 d-flex align-items-center">
+          <div class="form-check form-switch m-0">
+            <input class="form-check-input" type="checkbox" role="switch" name="is_primary" value="1" id="np">
+            <label class="form-check-label text-muted" for="np">设为主联系人</label>
+          </div>
+        </div>
+        <div class="col-md-2 text-end">
+          <button type="submit" class="btn btn-primary px-4">添加</button>
+        </div>
+      </form>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- 跟进动态 Tab -->
+  <div class="tab-pane fade" id="tab-follow">
+    <div class="row g-4 crm-detail-section-row">
+      <div class="col-xl-8">
+        <div class="modern-card crm-content-card crm-detail-inline-card" data-follow-history-card>
+          <div class="crm-section-head">
+            <div class="crm-section-head-main">
+              <div class="crm-section-head-label">客户动态</div>
+              <h5 class="crm-section-title">历史动态</h5>
+            </div>
+            <div class="crm-section-actions">
+              <a class="btn btn-light" href="{{ url_for('customer_follow_up_export', customer_id=customer.id) }}">
+                <i class="bi bi-download me-1"></i>导出历史动态
+              </a>
+            </div>
+          </div>
+          <div class="crm-follow-history-scroll" data-follow-history-scroll>
+          <div class="table-responsive">
+            <table class="table table-modern">
+              <thead><tr><th>时间</th><th>跟进人</th><th>方式</th><th>商机</th><th>内容</th></tr></thead>
+              <tbody>
+                {% for f in follow_ups %}
+                <tr>
+                  <td class="text-nowrap text-muted">{{ f.followed_at }}</td>
+                  <td>{{ f.followed_by }}</td>
+                  <td><span class="status-pill status-muted">{{ customer_follow_method_labels.get(f.method, f.method) }}</span></td>
+                  <td>{{ f.opportunity_title or "—" }}</td>
+                  <td class="text-main">
+                    <div class="crm-followup-content{% if (f.content or '')|length > 120 %} is-collapsed{% endif %}" data-followup-content>{{ f.content }}</div>
+                    {% if (f.content or '')|length > 120 %}
+                    <button type="button" class="crm-followup-toggle" data-followup-toggle>展开</button>
+                    {% endif %}
+                  </td>
+                </tr>
+                {% else %}
+                <tr><td colspan="5" class="text-muted text-center py-4">暂无历史动态</td></tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+          </div>
+        </div>
+      </div>
+      <div class="col-xl-4">
+        {% if can('customer', 'manage') %}
+        <div class="modern-card crm-side-card crm-detail-inline-card" data-follow-entry-card>
+          <div class="crm-section-head">
+            <div class="crm-section-head-main">
+              <div class="crm-section-head-label">新增动态</div>
+              <h5 class="crm-section-title">新增跟进记录</h5>
+            </div>
+          </div>
+          <form method="post" action="{{ url_for('customer_follow_up_add', customer_id=customer.id) }}" class="row g-3">
+            <div class="col-12">
+              <label class="form-label">跟进时间</label>
+              <input type="datetime-local" name="followed_at" class="form-control">
+            </div>
+            <div class="col-12">
+              <label class="form-label">方式</label>
+              <select name="method" class="form-select">
+                {% for k, v in customer_follow_method_labels.items() %}
+                <option value="{{ k }}">{{ v }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="col-12">
+              <label class="form-label">下次跟进</label>
+              <input type="date" name="next_followup_at" class="form-control">
+            </div>
+            <div class="col-12">
+              <label class="form-label">关联商机（可选）</label>
+              <select name="opportunity_id" class="form-select">
+                <option value="">—</option>
+                {% for o in opportunities %}
+                <option value="{{ o.id }}">{{ o.title }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="col-12">
+              <label class="form-label required">跟进内容</label>
+              <textarea name="content" class="form-control" rows="4" required placeholder="电话/拜访/邮件等内容"></textarea>
+            </div>
+            <div class="col-12 text-end mt-2">
+              <button type="submit" class="btn btn-primary w-100">保存跟进</button>
+            </div>
+          </form>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block page_scripts %}
+<script>
+(function () {
+  var nav = document.querySelector('[data-crm-tab-nav="customer"]');
+  if (!nav) return;
+  var followHistory = document.querySelector('[data-follow-history-scroll]');
+  var followHistoryCard = document.querySelector('[data-follow-history-card]');
+  var followEntryCard = document.querySelector('[data-follow-entry-card]');
+
+  function updateActiveUrl(targetSelector) {
+    if (!targetSelector || targetSelector.indexOf('#tab-') !== 0) return;
+    var tab = targetSelector.replace('#tab-', '');
+    var url = new URL(window.location.href);
+    if (tab === 'overview') {
+      url.searchParams.delete('tab');
+    } else {
+      url.searchParams.set('tab', tab);
+    }
+    url.hash = '';
+    window.history.replaceState({}, '', url.toString());
+  }
+
+  function syncFollowHistoryHeight() {
+    if (!followHistory) return;
+    if (window.innerWidth < 1200 || !followEntryCard || !followHistoryCard) {
+      followHistory.style.height = '';
+      followHistory.style.maxHeight = '';
+      return;
+    }
+    var nonScrollableHeight = followHistoryCard.offsetHeight - followHistory.offsetHeight;
+    var availableHeight = Math.max(240, followEntryCard.offsetHeight - nonScrollableHeight);
+    followHistory.style.height = availableHeight + 'px';
+    followHistory.style.maxHeight = availableHeight + 'px';
+  }
+
+  nav.querySelectorAll('button[data-bs-toggle="tab"]').forEach(function (btn) {
+    btn.addEventListener('shown.bs.tab', function (e) {
+      updateActiveUrl(e.target.getAttribute('data-bs-target'));
+      syncFollowHistoryHeight();
+    });
+  });
+
+  var init = nav.querySelector('.nav-link.active');
+  if (init) {
+    updateActiveUrl(init.getAttribute('data-bs-target'));
+  }
+  syncFollowHistoryHeight();
+  window.addEventListener('resize', syncFollowHistoryHeight);
+
+  document.querySelectorAll('[data-followup-toggle]').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      var content = btn.parentElement ? btn.parentElement.querySelector('[data-followup-content]') : null;
+      if (!content) return;
+      var expanded = content.classList.toggle('is-expanded');
+      content.classList.toggle('is-collapsed', !expanded);
+      btn.textContent = expanded ? '收起' : '展开';
+    });
+  });
+})();
+</script>
+{% endblock %}

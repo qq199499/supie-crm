@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="crm-page-head">
+  <div class="crm-page-head-main">
+    <h4 class="crm-page-title">{% if role %}编辑角色{% else %}新建角色{% endif %}</h4>
+    <div class="crm-page-subtitle">勾选“全部权限”后，其它细项可忽略；保存后对用户重新登录生效。新建角色的内部代码由系统自动生成，不在此填写。</div>
+  </div>
+  <div class="crm-page-actions">
+    <a class="btn btn-light" href="{{ url_for('role_list') }}">返回列表</a>
+  </div>
+</div>
+
+<div class="modern-card crm-content-card">
+  <div class="card-body">
+    <form method="post">
+      <div class="mb-3">
+        <label class="form-label">角色名称</label>
+        <input name="name" class="form-control" required value="{{ role.name if role else '' }}" placeholder="例如：售前顾问">
+      </div>
+
+      <div class="fw-semibold mb-2">权限</div>
+      {% for group_name, items in groups.items() %}
+      <div class="card mb-3 entity-form-card">
+        <div class="card-header">{{ group_name }}</div>
+        <div class="card-body">
+          <div class="row g-2">
+            {% for key, label in items %}
+            <div class="col-md-6 col-lg-4">
+              <div class="form-check">
+                <input class="form-check-input" type="checkbox" name="perms" value="{{ key }}" id="perm_{{ key|replace(':', '_')|replace('*', 'all') }}"
+                  {% if key in selected %}checked{% endif %}>
+                <label class="form-check-label" for="perm_{{ key|replace(':', '_')|replace('*', 'all') }}">{{ label }} <span class="text-muted small">({{ key }})</span></label>
+              </div>
+            </div>
+            {% endfor %}
+          </div>
+        </div>
+      </div>
+      {% endfor %}
+
+      <div class="mt-2">
+        <button type="submit" class="btn btn-primary">保存</button>
+        <a class="btn btn-light" href="{{ url_for('role_list') }}">取消</a>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,205 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="crm-page-head">
+  <div class="crm-page-head-main">
+    <h4 class="crm-page-title">回款应收</h4>
+    {% if filter_contract %}
+    <div class="crm-page-subtitle">
+      关联合同：{{ filter_contract.contract_no }} <a href="{{ url_for('contract_detail', contract_id=filter_contract.id) }}" class="ms-2">返回合同</a>
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+<div class="crm-toolbar-card">
+  <form method="get" class="crm-toolbar-form mb-0">
+    {% if filter_contract %}
+    <input type="hidden" name="contract_id" value="{{ filter_contract.id }}">
+    {% endif %}
+    <div class="crm-toolbar-item is-wide">
+      <label class="form-label">关键词</label>
+      <input type="text" name="q" class="form-control" value="{{ filter_q or '' }}" placeholder="搜索合同编号 / 客户名称">
+    </div>
+    <div class="crm-toolbar-item">
+      <label class="form-label">回款状态</label>
+      <select name="status" class="form-select">
+        <option value="">全部状态</option>
+        <option value="planned" {% if filter_status == 'planned' %}selected{% endif %}>计划中</option>
+        <option value="partial" {% if filter_status == 'partial' %}selected{% endif %}>部分回款</option>
+        <option value="received" {% if filter_status == 'received' %}selected{% endif %}>已结清</option>
+        <option value="overdue" {% if filter_status == 'overdue' %}selected{% endif %}>已逾期</option>
+      </select>
+    </div>
+    <div class="crm-toolbar-actions">
+      <button type="submit" class="btn btn-primary">查询</button>
+      <a class="btn btn-light" href="{{ url_for('receivable_list', contract_id=filter_contract.id) if filter_contract else url_for('receivable_list') }}">重置</a>
+    </div>
+  </form>
+</div>
+
+<div class="crm-data-card">
+  <div class="crm-section-head">
+    <div class="crm-section-head-main">
+      <div class="crm-section-head-label text-uppercase small text-muted">财务视图</div>
+      <h5 class="crm-section-title">应收列表</h5>
+    </div>
+    <div class="crm-section-actions">
+      <form method="get" class="d-inline-flex align-items-center gap-2 m-0">
+        {% if filter_contract %}<input type="hidden" name="contract_id" value="{{ filter_contract.id }}">{% endif %}
+        <input type="hidden" name="q" value="{{ filter_q or '' }}">
+        <input type="hidden" name="status" value="{{ filter_status or '' }}">
+        <label class="text-muted small mb-0">每页</label>
+        <select name="per_page" class="form-select form-select-sm" style="width: 90px;" onchange="this.form.submit()">
+          {% for size in [15, 50, 100] %}
+          <option value="{{ size }}" {% if per_page == size %}selected{% endif %}>{{ size }}</option>
+          {% endfor %}
+        </select>
+        <noscript><button type="submit" class="btn btn-sm btn-light">切换</button></noscript>
+      </form>
+      <a class="btn btn-light text-primary" href="{{ url_for('receivable_list_export', contract_id=filter_contract.id, q=filter_q, status=filter_status) if filter_contract else url_for('receivable_list_export', q=filter_q, status=filter_status) }}">
+        <i class="bi bi-download me-1"></i>导出
+      </a>
+      {% if can('receivable', 'manage') %}
+      <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#createReceivableModal">
+        <i class="bi bi-plus-lg me-1"></i>新增回款计划
+      </button>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="table-responsive table-shell">
+    <table class="table table-hover table-modern table-sm">
+      <thead>
+        <tr>
+          <th style="width: 60px;">序号</th>
+          <th>关联合同</th>
+          <th>客户名称</th>
+          <th>计划回款</th>
+          <th>实际回款</th>
+          <th>状态</th>
+          <th style="width: 320px;">到账登记</th>
+          <th style="width: 140px;">操作</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in receivables %}
+        <tr>
+          <td class="text-muted">{{ loop.index }}</td>
+          <td class="fw-medium">
+            <a href="{{ url_for('contract_detail', contract_id=r.contract_id) }}" class="crm-cell-title text-decoration-none">{{ r.contract_no }}</a>
+          </td>
+          <td>{{ r.customer_name }}</td>
+          <td>
+            <div class="text-primary fw-medium">¥ {{ r.plan_amount }}</div>
+            <div class="text-muted small mt-1">计划日期: {{ r.plan_date }}</div>
+          </td>
+          <td>
+            {% if r.actual_amount %}
+            <div class="text-success fw-medium">¥ {{ r.actual_amount }}</div>
+            <div class="text-muted small mt-1">到账日期: {{ r.actual_date }}</div>
+            {% else %}
+            <span class="text-muted">—</span>
+            {% endif %}
+          </td>
+          <td>
+            {% if r.status == 'received' %}<span class="status-pill status-success"><i class="bi bi-check-circle-fill"></i> 已结清</span>
+            {% elif r.status == 'overdue' %}<span class="status-pill status-danger"><i class="bi bi-exclamation-circle-fill"></i> 已逾期</span>
+            {% elif r.status == 'partial' %}<span class="status-pill status-warning"><i class="bi bi-pie-chart-fill"></i> 部分回款</span>
+            {% else %}<span class="status-pill status-muted"><i class="bi bi-clock"></i> {{ receivable_status_labels.get(r.status, r.status) }}</span>{% endif %}
+          </td>
+          <td>
+            <div class="d-flex align-items-center gap-2 flex-wrap">
+              <form method="post" action="{{ url_for('receive_receivable', receivable_id=r.id) }}" class="d-flex align-items-center gap-2 m-0">
+                {% if filter_contract %}<input type="hidden" name="contract_id" value="{{ filter_contract.id }}">{% endif %}
+                <input type="date" name="actual_date" class="form-control form-control-sm" style="max-width: 140px;" title="到账日期" required>
+                <input type="number" step="0.01" name="actual_amount" class="form-control form-control-sm" style="max-width: 120px;" placeholder="金额" required>
+                <button type="submit" class="border-0 bg-transparent p-0 text-success small fw-medium">登记</button>
+              </form>
+            </div>
+          </td>
+          <td>
+            <div class="crm-row-actions gap-3 align-items-center justify-content-end">
+              <a href="{{ url_for('contract_detail', contract_id=r.contract_id) }}" class="text-primary text-decoration-none small fw-medium">详情</a>
+              {% if can('receivable', 'manage') %}
+              <form method="post" action="{{ url_for('delete_receivable', receivable_id=r.id) }}" onsubmit="return confirm('确认删除该回款计划吗？');" class="d-inline">
+                {% if filter_contract %}<input type="hidden" name="contract_id" value="{{ filter_contract.id }}">{% endif %}
+                <button type="submit" class="border-0 bg-transparent p-0 text-danger small fw-medium">删除</button>
+              </form>
+              {% endif %}
+            </div>
+          </td>
+        </tr>
+        {% else %}
+        <tr>
+          <td colspan="8" class="text-center py-5">
+            <div class="crm-empty-state empty-state">
+              <i class="bi bi-cash-coin fs-1 text-muted d-block mb-3"></i>
+              <div class="text-main fw-medium">暂无回款计划</div>
+              <div class="text-muted small mt-1">可通过右上角新增回款计划开始登记。</div>
+            </div>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% if total_pages > 1 %}
+  <div class="d-flex justify-content-center mt-4">
+    <nav>
+      <ul class="pagination pagination-sm m-0">
+        <li class="page-item {% if page == 1 %}disabled{% endif %}">
+          <a class="page-link" href="{{ url_for('receivable_list', contract_id=filter_contract.id, q=filter_q, status=filter_status, per_page=per_page, page=page-1) if filter_contract else url_for('receivable_list', q=filter_q, status=filter_status, per_page=per_page, page=page-1) }}">上一页</a>
+        </li>
+        <li class="page-item disabled"><span class="page-link">{{ page }} / {{ total_pages }}</span></li>
+        <li class="page-item {% if page == total_pages %}disabled{% endif %}">
+          <a class="page-link" href="{{ url_for('receivable_list', contract_id=filter_contract.id, q=filter_q, status=filter_status, per_page=per_page, page=page+1) if filter_contract else url_for('receivable_list', q=filter_q, status=filter_status, per_page=per_page, page=page+1) }}">下一页</a>
+        </li>
+      </ul>
+    </nav>
+  </div>
+  {% endif %}
+</div>
+
+{% if can('receivable', 'manage') %}
+<div class="modal fade" id="createReceivableModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content entity-modal">
+      <div class="modal-header border-bottom">
+        <h5 class="modal-title fs-6 fw-bold">新增回款计划</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <form method="post" action="{{ url_for('receivable_list', contract_id=filter_contract.id) if filter_contract else url_for('receivable_list') }}">
+        <div class="modal-body p-4 row g-3">
+          <div class="col-12">
+            <label class="form-label required">关联合同</label>
+            <select name="contract_id" class="form-select" required>
+              <option value="">请选择...</option>
+              {% for c in contracts %}
+              <option value="{{ c.id }}" {% if filter_contract and c.id == filter_contract.id %}selected{% endif %}>{{ c.contract_no }} / {{ c.customer_name }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="col-md-6">
+            <label class="form-label required">计划回款日期</label>
+            <input type="date" name="plan_date" class="form-control" required>
+          </div>
+          <div class="col-md-6">
+            <label class="form-label required">计划回款金额</label>
+            <input type="number" step="0.01" name="plan_amount" class="form-control" placeholder="0.00" required>
+          </div>
+          <div class="col-12">
+            <label class="form-label">备注</label>
+            <textarea name="note" class="form-control" rows="2" placeholder="可填写阶段回款说明..."></textarea>
+          </div>
+        </div>
+        <div class="modal-footer border-top bg-light">
+          <button type="button" class="btn btn-light" data-bs-dismiss="modal">取消</button>
+          <button type="submit" class="btn btn-primary">保存计划</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endif %}
+{% endblock %}

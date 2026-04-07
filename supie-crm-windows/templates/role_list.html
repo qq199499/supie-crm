@@ -1,0 +1,105 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="crm-page-head">
+  <div class="crm-page-head-main">
+    <h4 class="crm-page-title">角色与权限</h4>
+    <div class="crm-page-subtitle">角色可以同时绑定到一个用户身上，系统会按角色权限并集判断页面和操作权限。</div>
+  </div>
+</div>
+
+<div class="crm-data-card">
+  <div class="crm-section-head">
+    <div class="crm-section-head-main">
+      <div class="crm-section-head-label text-uppercase small text-muted">系统设置</div>
+      <h5 class="crm-section-title">角色列表</h5>
+      <div class="crm-section-meta">这里可以看到系统内置角色、用户数量和是否可删除。</div>
+    </div>
+    <div class="crm-section-actions">
+      <form method="get" class="d-inline-flex align-items-center gap-2 m-0">
+        <label class="text-muted small mb-0">每页</label>
+        <select name="per_page" class="form-select form-select-sm" style="width: 90px;" onchange="this.form.submit()">
+          {% for size in [15, 50, 100] %}
+          <option value="{{ size }}" {% if per_page == size %}selected{% endif %}>{{ size }}</option>
+          {% endfor %}
+        </select>
+        <noscript><button type="submit" class="btn btn-sm btn-light">切换</button></noscript>
+      </form>
+      <a class="btn btn-light text-primary" href="{{ url_for('role_list_export') }}"><i class="bi bi-download me-1"></i>导出</a>
+      <a class="btn btn-primary" href="{{ url_for('role_new') }}"><i class="bi bi-plus-lg me-1"></i>新建角色</a>
+    </div>
+  </div>
+  <div class="table-responsive table-shell">
+    <table class="table table-hover table-modern table-sm">
+      <thead>
+        <tr>
+          <th style="width: 60px;">序号</th>
+          <th>角色名称</th>
+          <th>用户数量</th>
+          <th>类型</th>
+          <th style="width: 160px;">操作</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in roles %}
+        <tr>
+          <td class="text-muted">{{ loop.index }}</td>
+          <td><div class="crm-cell-title">{{ r.name }}</div></td>
+          <td>
+            {% if r.user_count > 0 %}
+            <span class="badge bg-primary rounded-pill">{{ r.user_count }}</span>
+            {% else %}
+            <span class="text-muted">0</span>
+            {% endif %}
+          </td>
+          <td>
+            {% if r.is_system %}
+            <span class="status-pill status-muted"><i class="bi bi-lock-fill"></i> 系统内置</span>
+            {% else %}
+            <span class="status-pill status-primary"><i class="bi bi-person-fill-gear"></i> 自定义</span>
+            {% endif %}
+          </td>
+          <td>
+            <div class="crm-row-actions gap-3 justify-content-end align-items-center">
+              <a href="{{ url_for('role_edit', role_id=r.id) }}" class="text-primary text-decoration-none small fw-medium">编辑权限</a>
+              {% if not r.is_system %}
+              <form method="post" action="{{ url_for('role_delete', role_id=r.id) }}" onsubmit="return confirm('确认删除该角色？');" class="m-0">
+                <button type="submit" class="border-0 bg-transparent p-0 text-danger small fw-medium" {% if r.user_count and r.user_count > 0 %}disabled title="请先解除用户绑定"{% endif %}>删除</button>
+              </form>
+              {% else %}
+              <span class="text-muted" style="font-size: 12px; cursor: not-allowed;" title="系统内置角色不可删除">不可删除</span>
+              {% endif %}
+            </div>
+          </td>
+        </tr>
+        {% else %}
+        <tr>
+          <td colspan="5" class="text-center py-5">
+            <div class="crm-empty-state empty-state">
+              <i class="bi bi-shield-x fs-1 text-muted d-block mb-3 opacity-50"></i>
+              <div class="text-main fw-medium">暂无角色数据</div>
+              <div class="text-muted small mt-1">可通过右上角新建角色开始配置。</div>
+            </div>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% if total_pages > 1 %}
+  <div class="d-flex justify-content-center mt-4">
+    <nav>
+      <ul class="pagination pagination-sm m-0">
+        <li class="page-item {% if page == 1 %}disabled{% endif %}">
+          <a class="page-link" href="{{ url_for('role_list', per_page=per_page, page=page-1) }}">上一页</a>
+        </li>
+        <li class="page-item disabled"><span class="page-link">{{ page }} / {{ total_pages }}</span></li>
+        <li class="page-item {% if page == total_pages %}disabled{% endif %}">
+          <a class="page-link" href="{{ url_for('role_list', per_page=per_page, page=page+1) }}">下一页</a>
+        </li>
+      </ul>
+    </nav>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

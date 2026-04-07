@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="project-detail-page">
+  <div class="crm-page-head">
+    <div class="crm-page-head-main">
+      <a href="{{ url_for('project_detail', project_id=project.id) }}" class="crm-back-link mb-2">← 返回项目</a>
+      <h4 class="crm-page-title">任务管理</h4>
+      <p class="crm-page-subtitle mb-0">{{ project.name }}</p>
+    </div>
+  </div>
+  {% include 'partials/project_manage_tasks_inner.html' %}
+  {% include 'partials/project_detail_attachment_modals.html' %}
+</div>
+{% endblock %}
+{% block page_scripts %}
+{% include 'partials/project_scripts_attachment_core.html' %}
+{% endblock %}

@@ -1,0 +1,259 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="crm-page-head">
+  <div class="crm-page-head-main">
+    <h4 class="crm-page-title">商机管理</h4>
+  </div>
+</div>
+
+<div class="row mb-4">
+  <!-- 商机漏斗卡片 -->
+  <div class="col-12">
+    <div class="crm-content-card p-4">
+      <div class="crm-section-head">
+        <div class="crm-section-head-main">
+          <h5 class="crm-section-title">商机漏斗概览</h5>
+        </div>
+      </div>
+      <div class="row g-0">
+        {% for code, lab in opportunity_stage_labels.items() %}
+        {% set row = funnel.get(code) %}
+        <div class="col px-2 {% if not loop.last %}border-end{% endif %}">
+          <div class="text-muted mb-2 text-center small">{{ lab }}</div>
+          <div class="text-center">
+            <span class="fs-4 fw-bold text-main">{% if row %}{{ row[0] }}{% else %}0{% endif %}</span>
+            <span class="text-muted" style="font-size: 12px;">个</span>
+          </div>
+          <div class="text-center text-primary mt-1 small opacity-75">
+            ¥ {% if row %}{{ '%.2f'|format(row[1]) }}{% else %}0.00{% endif %}
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="crm-toolbar-card">
+  <form method="get" class="crm-toolbar-form mb-0">
+    <div class="crm-toolbar-item">
+      <label class="form-label">阶段</label>
+      <select name="stage" class="form-select">
+        <option value="">全部阶段</option>
+        {% for code, lab in opportunity_stage_labels.items() %}
+        <option value="{{ code }}" {% if filter_stage == code %}selected{% endif %}>{{ lab }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="crm-toolbar-item is-wide">
+      <label class="form-label">所属客户</label>
+      <select name="customer_id" class="form-select">
+        <option value="">全部客户</option>
+        {% for c in customers %}
+        <option value="{{ c.id }}" {% if filter_customer_id == c.id %}selected{% endif %}>{{ c.name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="crm-toolbar-item">
+      <label class="form-label">负责人</label>
+      <input type="text" name="owner" class="form-control" value="{{ filter_owner or '' }}" placeholder="模糊搜索">
+    </div>
+    <div class="crm-toolbar-item">
+      <label class="form-label">范围</label>
+      <div class="form-check form-switch">
+        <input class="form-check-input" type="checkbox" role="switch" name="mine" value="1" id="filterMine" {% if filter_mine %}checked{% endif %}>
+        <label class="form-check-label text-muted" for="filterMine">只看我跟进的</label>
+      </div>
+    </div>
+    <div class="crm-toolbar-actions">
+      <button type="submit" class="btn btn-primary"><i class="bi bi-search me-1"></i>筛选</button>
+      <a href="{{ url_for('opportunity_list') }}" class="btn btn-light">重置</a>
+    </div>
+  </form>
+</div>
+
+<div class="crm-data-card">
+  <div class="crm-section-head">
+    <div class="crm-section-head-main">
+      <div class="crm-section-head-label text-uppercase small text-muted">销售视图</div>
+      <h5 class="crm-section-title">商机列表</h5>
+    </div>
+    <div class="crm-section-actions">
+      <form method="get" class="d-inline-flex align-items-center gap-2 m-0">
+        <input type="hidden" name="stage" value="{{ filter_stage or '' }}">
+        <input type="hidden" name="customer_id" value="{{ filter_customer_id or '' }}">
+        <input type="hidden" name="owner" value="{{ filter_owner or '' }}">
+        <input type="hidden" name="mine" value="{{ 1 if filter_mine else '' }}">
+        <label class="text-muted small mb-0">每页</label>
+        <select name="per_page" class="form-select form-select-sm" style="width: 90px;" onchange="this.form.submit()">
+          {% for size in [15, 50, 100] %}
+          <option value="{{ size }}" {% if per_page == size %}selected{% endif %}>{{ size }}</option>
+          {% endfor %}
+        </select>
+        <noscript><button type="submit" class="btn btn-sm btn-light">切换</button></noscript>
+      </form>
+      <a class="btn btn-light text-primary" href="{{ url_for('opportunity_list_export', stage=filter_stage, customer_id=filter_customer_id, owner=filter_owner, mine=1) if filter_mine else url_for('opportunity_list_export', stage=filter_stage, customer_id=filter_customer_id, owner=filter_owner) }}">
+        <i class="bi bi-download me-1"></i>导出
+      </a>
+      {% if can('opportunity', 'manage') %}
+      <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#createOpportunityModal">
+        <i class="bi bi-plus-lg me-1"></i>新增商机
+      </button>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="table-responsive table-shell">
+    <table class="table table-hover table-modern table-sm">
+      <thead>
+        <tr>
+          <th style="width: 60px;">序号</th>
+          <th style="min-width: 180px;">商机名称</th>
+          <th>所属客户</th>
+          <th>预计金额</th>
+          <th>当前阶段</th>
+          <th>负责人</th>
+          <th>状态</th>
+          <th>预计签约</th>
+          <th style="width: 120px;">操作</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for o in opportunities %}
+        <tr>
+          <td class="text-muted">{{ loop.index }}</td>
+          <td>
+            <a class="crm-cell-title text-decoration-none" href="{{ url_for('opportunity_detail', opportunity_id=o.id) }}">{{ o.title }}</a>
+            <div class="crm-cell-meta">可信度：{{ amount_confidence_labels.get(o.amount_confidence, o.amount_confidence or '-') }}</div>
+          </td>
+          <td>{{ o.customer_name }}</td>
+          <td class="text-primary fw-medium">¥ {{ o.amount }}</td>
+          <td>
+            <span class="status-pill status-muted">{{ opportunity_stage_labels.get(o.stage, o.stage or '-') }}</span>
+            <div class="text-muted small mt-1">进入时间：{{ ((o.stage_started_at or '')|replace('T',' '))[0:10] }}</div>
+          </td>
+          <td>{{ o.owner }}</td>
+          <td>
+            {% if o.status == 'tracking' %}
+              <span class="status-pill status-primary"><i class="bi bi-circle-fill"></i> {{ opportunity_status_labels.get(o.status, o.status) }}</span>
+            {% elif o.status == 'won' %}
+              <span class="status-pill status-success"><i class="bi bi-check-circle-fill"></i> {{ opportunity_status_labels.get(o.status, o.status) }}</span>
+            {% elif o.status == 'lost' %}
+              <span class="status-pill status-danger"><i class="bi bi-x-circle-fill"></i> {{ opportunity_status_labels.get(o.status, o.status) }}</span>
+            {% else %}
+              <span class="status-pill status-muted">{{ opportunity_status_labels.get(o.status, o.status) }}</span>
+            {% endif %}
+          </td>
+          <td class="text-muted">{{ o.expected_sign_date or "未定" }}</td>
+          <td>
+            <div class="crm-row-actions gap-3 justify-content-end align-items-center">
+              <a href="{{ url_for('opportunity_detail', opportunity_id=o.id) }}" class="text-primary text-decoration-none small fw-medium">详情</a>
+              {% if can('opportunity', 'manage') %}
+              <form method="post" action="{{ url_for('delete_opportunity', opportunity_id=o.id) }}" onsubmit="return confirm('确认删除该商机吗？');" class="d-inline">
+                <button type="submit" class="border-0 bg-transparent p-0 text-danger small fw-medium">删除</button>
+              </form>
+              {% endif %}
+            </div>
+          </td>
+        </tr>
+        {% else %}
+        <tr>
+          <td colspan="9" class="text-center py-5">
+            <div class="crm-empty-state empty-state">
+              <i class="bi bi-inbox fs-1 text-muted d-block mb-3"></i>
+              <div class="text-main fw-medium">暂无商机数据</div>
+              <div class="text-muted small mt-1">可通过右上角新增商机开始跟进。</div>
+            </div>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% if total_pages > 1 %}
+  <div class="d-flex justify-content-center mt-4">
+    <nav>
+      <ul class="pagination pagination-sm m-0">
+        <li class="page-item {% if page == 1 %}disabled{% endif %}">
+          <a class="page-link" href="{{ url_for('opportunity_list', stage=filter_stage, customer_id=filter_customer_id, owner=filter_owner, mine=1, per_page=per_page, page=page-1) if filter_mine else url_for('opportunity_list', stage=filter_stage, customer_id=filter_customer_id, owner=filter_owner, per_page=per_page, page=page-1) }}">上一页</a>
+        </li>
+        <li class="page-item disabled"><span class="page-link">{{ page }} / {{ total_pages }}</span></li>
+        <li class="page-item {% if page == total_pages %}disabled{% endif %}">
+          <a class="page-link" href="{{ url_for('opportunity_list', stage=filter_stage, customer_id=filter_customer_id, owner=filter_owner, mine=1, per_page=per_page, page=page+1) if filter_mine else url_for('opportunity_list', stage=filter_stage, customer_id=filter_customer_id, owner=filter_owner, per_page=per_page, page=page+1) }}">下一页</a>
+        </li>
+      </ul>
+    </nav>
+  </div>
+  {% endif %}
+</div>
+
+{% if can('opportunity', 'manage') %}
+<div class="modal fade" id="createOpportunityModal" tabindex="-1">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content entity-modal">
+      <div class="modal-header border-bottom">
+        <h5 class="modal-title fs-6 fw-bold">新增商机</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <form method="post">
+        <div class="modal-body p-4 row g-3">
+          <div class="col-12">
+            <label class="form-label required">关联客户</label>
+            <select name="customer_id" class="form-select" required>
+              <option value="">请选择客户...</option>
+              {% for c in customers %}
+              <option value="{{ c.id }}">{{ c.name }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="col-12">
+            <label class="form-label required">商机名称</label>
+            <input name="title" class="form-control" placeholder="请输入商机标题" required>
+          </div>
+          <div class="col-md-6">
+            <label class="form-label">预计金额 (元)</label>
+            <input type="number" step="0.01" name="amount" class="form-control" placeholder="0.00">
+          </div>
+          <div class="col-md-6">
+            <label class="form-label required">负责人</label>
+            <div class="crm-person-picker" data-source-url="{{ url_for('api_users_search') }}">
+              <input type="hidden" name="owner_user_id" class="crm-person-picker-id" value="">
+              <input type="hidden" name="owner" class="crm-person-picker-value" value="">
+              <div class="position-relative">
+                <input type="text" class="form-control crm-person-picker-input" placeholder="输入姓名或账号搜索" autocomplete="off" required>
+                <div class="list-group shadow-sm crm-person-picker-dropdown d-none"></div>
+              </div>
+            </div>
+          </div>
+          <div class="col-md-4">
+            <label class="form-label">当前阶段</label>
+            <select name="stage" class="form-select">
+              {% for code, lab in opportunity_stage_labels.items() %}
+              <option value="{{ code }}" {% if code == 'lead' %}selected{% endif %}>{{ lab }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="col-md-4">
+            <label class="form-label">赢单率预估</label>
+            <select name="amount_confidence" class="form-select">
+              <option value="">暂不评估</option>
+              {% for k, v in amount_confidence_labels.items() %}
+              <option value="{{ k }}">{{ v }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="col-md-4">
+            <label class="form-label">预计签约日期</label>
+            <input type="date" name="expected_sign_date" class="form-control">
+          </div>
+        </div>
+        <div class="modal-footer border-top bg-light">
+          <button type="button" class="btn btn-light" data-bs-dismiss="modal">取消</button>
+          <button type="submit" class="btn btn-primary">保存商机</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,207 @@
+<div class="crm-toolbar-card">
+  <div class="crm-toolbar-form mb-0">
+    <div class="row g-3 align-items-end">
+      <div class="col-12 col-lg-8">
+        <div class="crm-toolbar-note mt-0">
+          风险管理用于持续跟踪等级、责任人、处理状态和应对措施。新建风险采用弹窗录入，保存后即时回到列表。
+        </div>
+      </div>
+      <div class="col-12 col-lg-auto ms-lg-auto d-flex gap-2 justify-content-lg-end">
+        {% if can('project', 'manage') %}
+        <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#createRiskModal">
+          <i class="bi bi-plus-lg me-1"></i>新建风险
+        </button>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="crm-data-card">
+  <div class="crm-section-head">
+    <div class="crm-section-head-main">
+      <div class="crm-section-head-label">风险跟踪</div>
+      <h5 class="crm-section-title">风险列表</h5>
+      <div class="crm-section-meta">统一查看风险等级、责任人、截止日期、状态和应对措施。</div>
+    </div>
+  </div>
+
+  <div class="table-responsive table-shell">
+    <table class="table table-hover table-modern table-sm">
+      <thead>
+        <tr>
+          <th style="width: 60px;">序号</th>
+          <th>风险名称</th>
+          <th>等级</th>
+          <th>负责人</th>
+          <th>截止日期</th>
+          <th>状态</th>
+          <th>应对措施</th>
+          <th style="width: 120px;">操作</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in risks %}
+        {% set can_edit_risk = can('project', 'manage') or (can('issue', 'manage') and r.owner|string|trim|lower in current_user_identity_values) %}
+        <tr>
+          <td class="text-muted">{{ loop.index }}</td>
+          <td><div class="crm-cell-title">{{ r.title }}</div></td>
+          <td>
+            {% if r.level == 'high' %}
+            <span class="status-pill status-danger">高</span>
+            {% elif r.level == 'medium' %}
+            <span class="status-pill status-warning">中</span>
+            {% else %}
+            <span class="status-pill status-muted">低</span>
+            {% endif %}
+          </td>
+          <td>{{ r.owner }}</td>
+          <td class="text-muted small">{% if r.due_date %}{{ (r.due_date|string)[:10] }}{% else %}—{% endif %}</td>
+          <td>
+            {% if r.status == 'closed' %}
+            <span class="status-pill status-success">已关闭</span>
+            {% elif r.status == 'in_progress' %}
+            <span class="status-pill status-primary">处理中</span>
+            {% else %}
+            <span class="status-pill status-warning">开放</span>
+            {% endif %}
+          </td>
+          <td class="text-muted small">{{ r.mitigation or '—' }}</td>
+          <td>
+            <div class="crm-row-actions gap-3 justify-content-end align-items-center">
+              {% if can_edit_risk %}
+              <button class="border-0 bg-transparent p-0 text-primary small fw-medium" type="button" data-bs-toggle="collapse" data-bs-target="#risk-edit-{{ r.id }}">编辑</button>
+              {% endif %}
+              {% if can('project', 'manage') %}
+              <form method="post" action="{{ url_for('delete_risk', risk_id=r.id) }}" onsubmit="return confirm('确认删除该风险吗？');" class="d-inline">
+                <button type="submit" class="border-0 bg-transparent p-0 text-danger small fw-medium">删除</button>
+              </form>
+              {% endif %}
+            </div>
+          </td>
+        </tr>
+        <tr class="collapse" id="risk-edit-{{ r.id }}">
+          <td colspan="8" class="p-3 bg-light border-0">
+            <form method="post" action="{{ url_for('update_risk', risk_id=r.id) }}" class="row g-3 m-0">
+              <div class="col-md-4">
+                <label class="form-label">风险名称</label>
+                <input type="text" name="title" class="form-control" value="{{ r.title }}" required>
+              </div>
+              <div class="col-md-2">
+                <label class="form-label">等级</label>
+                <select name="level" class="form-select">
+                  <option value="high" {% if r.level == 'high' %}selected{% endif %}>高</option>
+                  <option value="medium" {% if r.level == 'medium' %}selected{% endif %}>中</option>
+                  <option value="low" {% if r.level == 'low' %}selected{% endif %}>低</option>
+                </select>
+              </div>
+              <div class="col-md-2">
+                <label class="form-label">负责人</label>
+                <div class="crm-person-picker" data-person-options='{{ project_member_options|tojson }}'>
+                  <input type="hidden" name="owner_user_id" class="crm-person-picker-id" value="">
+                  <input type="hidden" name="owner" class="crm-person-picker-value" value="{{ r.owner }}">
+                  <div class="position-relative">
+                    <input type="text" class="form-control crm-person-picker-input" value="{{ r.owner }}" autocomplete="off" placeholder="输入姓名或账号搜索项目成员" required>
+                    <div class="list-group shadow-sm crm-person-picker-dropdown d-none"></div>
+                  </div>
+                </div>
+              </div>
+              <div class="col-md-2">
+                <label class="form-label">截止日期</label>
+                <input type="date" name="due_date" class="form-control" value="{% if r.due_date %}{{ (r.due_date|string)[:10] }}{% endif %}">
+              </div>
+              <div class="col-md-2">
+                <label class="form-label">状态</label>
+                <select name="status" class="form-select">
+                  <option value="open" {% if r.status == 'open' %}selected{% endif %}>开放</option>
+                  <option value="in_progress" {% if r.status == 'in_progress' %}selected{% endif %}>处理中</option>
+                  <option value="closed" {% if r.status == 'closed' %}selected{% endif %}>已关闭</option>
+                </select>
+              </div>
+              <div class="col-12">
+                <label class="form-label">应对措施</label>
+                <input type="text" name="mitigation" class="form-control" value="{{ r.mitigation or '' }}" placeholder="应对措施">
+              </div>
+              <div class="col-12 text-end">
+                {% if can_edit_risk %}
+                <button type="submit" class="btn btn-primary px-4">保存风险</button>
+                {% else %}
+                <span class="text-muted small">仅负责人可编辑该风险。</span>
+                {% endif %}
+              </div>
+            </form>
+          </td>
+        </tr>
+        {% else %}
+        <tr>
+          <td colspan="8" class="text-center py-5">
+            <div class="crm-empty-state empty-state">
+              <i class="bi bi-inbox fs-1 text-muted d-block mb-3"></i>
+              <div class="text-main fw-medium">暂无风险</div>
+              <div class="text-muted small mt-1">点击右上角“新建风险”开始登记风险事项。</div>
+            </div>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div class="modal fade" id="createRiskModal" tabindex="-1">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content entity-modal">
+      <div class="modal-header border-bottom">
+        <h5 class="modal-title fs-6 fw-bold">新建风险</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <form method="post" action="{{ url_for('create_risk', project_id=project.id) }}">
+        <div class="modal-body p-4 row g-3">
+          <div class="col-12">
+            <label class="form-label required">风险名称</label>
+            <input name="title" class="form-control" placeholder="请输入风险名称" required>
+          </div>
+          <div class="col-md-4">
+            <label class="form-label required">负责人</label>
+            <div class="crm-person-picker" data-person-options='{{ project_member_options|tojson }}'>
+              <input type="hidden" name="owner_user_id" class="crm-person-picker-id" value="">
+              <input type="hidden" name="owner" class="crm-person-picker-value" value="">
+              <div class="position-relative">
+                <input type="text" class="form-control crm-person-picker-input" placeholder="输入姓名或账号搜索项目成员" autocomplete="off" required>
+                <div class="list-group shadow-sm crm-person-picker-dropdown d-none"></div>
+              </div>
+            </div>
+          </div>
+          <div class="col-md-2">
+            <label class="form-label">等级</label>
+            <select name="level" class="form-select">
+              <option value="high">高</option>
+              <option value="medium" selected>中</option>
+              <option value="low">低</option>
+            </select>
+          </div>
+          <div class="col-md-2">
+            <label class="form-label">状态</label>
+            <select name="status" class="form-select">
+              <option value="open">开放</option>
+              <option value="in_progress">处理中</option>
+              <option value="closed">已关闭</option>
+            </select>
+          </div>
+          <div class="col-md-4">
+            <label class="form-label">截止日期</label>
+            <input type="date" name="due_date" class="form-control">
+          </div>
+          <div class="col-12">
+            <label class="form-label">应对措施</label>
+            <input name="mitigation" class="form-control" placeholder="应对措施">
+          </div>
+        </div>
+        <div class="modal-footer border-top bg-light">
+          <button type="button" class="btn btn-light" data-bs-dismiss="modal">取消</button>
+          <button type="submit" class="btn btn-primary px-4">保存风险</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>

@@ -1,0 +1,250 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="crm-page-head">
+  <div class="crm-page-head-main">
+    <h4 class="crm-page-title">客户管理</h4>
+  </div>
+</div>
+
+<div class="crm-toolbar-card">
+  <form method="get" class="crm-toolbar-form mb-0">
+    <div class="crm-toolbar-item">
+      <label class="form-label">负责人</label>
+      <input type="text" name="owner" class="form-control" value="{{ f_owner }}" placeholder="模糊搜索">
+    </div>
+    <div class="crm-toolbar-item">
+      <label class="form-label">分级</label>
+      <select name="tier" class="form-select">
+        <option value="">全部</option>
+        {% for k, v in customer_tier_labels.items() %}
+        <option value="{{ k }}" {% if f_tier == k %}selected{% endif %}>{{ v }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="crm-toolbar-item">
+      <label class="form-label">状态</label>
+      <select name="status" class="form-select">
+        <option value="">全部</option>
+        {% for k, v in customer_status_labels.items() %}
+        <option value="{{ k }}" {% if f_status == k %}selected{% endif %}>{{ v }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="crm-toolbar-item">
+      <label class="form-label">标签</label>
+      <input type="text" name="tag" class="form-control" value="{{ f_tag }}" placeholder="标签匹配">
+    </div>
+    <div class="crm-toolbar-item">
+      <label class="form-label">排序</label>
+      <select name="sort" class="form-select">
+        <option value="updated" {% if sort == 'updated' %}selected{% endif %}>最近更新</option>
+        <option value="follow" {% if sort == 'follow' %}selected{% endif %}>最近跟进</option>
+      </select>
+    </div>
+    <div class="crm-toolbar-actions">
+      <button type="submit" class="btn btn-primary"><i class="bi bi-search me-1"></i>查询</button>
+      <a href="{{ url_for('customer_list') }}" class="btn btn-light">重置</a>
+    </div>
+  </form>
+</div>
+
+<div class="crm-data-card">
+  <div class="crm-section-head">
+    <div class="crm-section-head-main">
+      <div class="crm-section-head-label text-uppercase small text-muted">客户洞察</div>
+      <h5 class="crm-section-title">客户列表</h5>
+    </div>
+    {% if can('customer', 'view') %}
+    <div class="crm-section-actions">
+      <form method="get" class="d-inline-flex align-items-center gap-2 m-0">
+        <input type="hidden" name="owner" value="{{ f_owner }}">
+        <input type="hidden" name="tier" value="{{ f_tier }}">
+        <input type="hidden" name="status" value="{{ f_status }}">
+        <input type="hidden" name="tag" value="{{ f_tag }}">
+        <input type="hidden" name="sort" value="{{ sort }}">
+        <label class="text-muted small mb-0">每页</label>
+        <select name="per_page" class="form-select form-select-sm" style="width: 90px;" onchange="this.form.submit()">
+          {% for size in [15, 50, 100] %}
+          <option value="{{ size }}" {% if per_page == size %}selected{% endif %}>{{ size }}</option>
+          {% endfor %}
+        </select>
+        <noscript><button type="submit" class="btn btn-sm btn-light">切换</button></noscript>
+      </form>
+      <a class="btn btn-light text-primary" href="{{ url_for('customer_list_export', owner=f_owner, tier=f_tier, status=f_status, tag=f_tag, sort=sort) }}">
+        <i class="bi bi-download me-1"></i>导出
+      </a>
+      {% if can('customer', 'manage') %}
+      <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#createCustomerModal">
+        <i class="bi bi-plus-lg me-1"></i>新增客户
+      </button>
+      {% endif %}
+    </div>
+    {% endif %}
+  </div>
+
+  <div class="table-responsive table-shell">
+    <table class="table table-hover table-modern table-sm">
+      <thead>
+        <tr>
+          <th style="width: 60px;">序号</th>
+          <th>客户名称</th>
+          <th>负责人</th>
+          <th>分级</th>
+          <th>状态</th>
+          <th>标签</th>
+          <th>最近跟进</th>
+          <th style="width: 120px;">操作</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for c in customers %}
+        <tr>
+          <td class="text-muted">{{ loop.index }}</td>
+          <td>
+            <a class="crm-cell-title text-decoration-none" href="{{ url_for('customer_detail', customer_id=c.id) }}">{{ c.name }}</a>
+            {% if c.industry %}
+            <div class="crm-cell-meta">{{ c.industry }}</div>
+            {% endif %}
+          </td>
+          <td>{{ c.owner }}</td>
+          <td>
+            {% if c.tier == 'strategic' %}
+              <span class="status-pill status-primary">{{ customer_tier_labels.get(c.tier, c.tier or '-') }}</span>
+            {% elif c.tier == 'important' %}
+              <span class="status-pill status-warning">{{ customer_tier_labels.get(c.tier, c.tier or '-') }}</span>
+            {% else %}
+              <span class="status-pill status-muted">{{ customer_tier_labels.get(c.tier, c.tier or '-') }}</span>
+            {% endif %}
+          </td>
+          <td>
+            {% if c.status == 'won' %}
+              <span class="status-pill status-success">{{ customer_status_labels.get(c.status, c.status or '-') }}</span>
+            {% elif c.status == 'lost' %}
+              <span class="status-pill status-danger">{{ customer_status_labels.get(c.status, c.status or '-') }}</span>
+            {% elif c.status == 'frozen' %}
+              <span class="status-pill status-warning">{{ customer_status_labels.get(c.status, c.status or '-') }}</span>
+            {% else %}
+              <span class="status-pill status-muted">{{ customer_status_labels.get(c.status, c.status or '-') }}</span>
+            {% endif %}
+          </td>
+          <td class="text-muted small">{{ c.tags or "—" }}</td>
+          <td class="text-muted small">{% if c.last_followup_at %}{{ (c.last_followup_at|string)[0:19] }}{% else %}—{% endif %}</td>
+          <td>
+            <div class="crm-row-actions gap-3 justify-content-end align-items-center">
+              <a href="{{ url_for('customer_detail', customer_id=c.id) }}" class="text-primary text-decoration-none small fw-medium">详情</a>
+              {% if can('customer', 'manage') %}
+              <form method="post" action="{{ url_for('delete_customer', customer_id=c.id) }}" onsubmit="return confirm('确认删除该客户吗？会影响相关商机与合同。');" class="d-inline">
+                <button type="submit" class="border-0 bg-transparent p-0 text-danger small fw-medium">删除</button>
+              </form>
+              {% endif %}
+            </div>
+          </td>
+        </tr>
+        {% else %}
+        <tr>
+          <td colspan="8" class="text-center py-5">
+            <div class="crm-empty-state empty-state">
+              <i class="bi bi-inbox fs-1 text-muted d-block mb-3"></i>
+              <div class="text-main fw-medium">暂无客户数据</div>
+              <div class="text-muted small mt-1">可通过右上角新增客户开始使用。</div>
+            </div>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% if total_pages > 1 %}
+  <div class="d-flex justify-content-center mt-4">
+    <nav>
+      <ul class="pagination pagination-sm m-0">
+        <li class="page-item {% if page == 1 %}disabled{% endif %}">
+          <a class="page-link" href="{{ url_for('customer_list', owner=f_owner, tier=f_tier, status=f_status, tag=f_tag, sort=sort, per_page=per_page, page=page-1) }}">上一页</a>
+        </li>
+        <li class="page-item disabled"><span class="page-link">{{ page }} / {{ total_pages }}</span></li>
+        <li class="page-item {% if page == total_pages %}disabled{% endif %}">
+          <a class="page-link" href="{{ url_for('customer_list', owner=f_owner, tier=f_tier, status=f_status, tag=f_tag, sort=sort, per_page=per_page, page=page+1) }}">下一页</a>
+        </li>
+      </ul>
+    </nav>
+  </div>
+  {% endif %}
+</div>
+
+{% if can('customer', 'manage') %}
+<div class="modal fade" id="createCustomerModal" tabindex="-1">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content entity-modal">
+      <div class="modal-header border-bottom">
+        <h5 class="modal-title fs-6 fw-bold">新增客户</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <form method="post">
+        <div class="modal-body p-4 row g-3">
+          <div class="col-12">
+            <label class="form-label required">客户名称</label>
+            <input name="name" class="form-control" placeholder="请输入完整客户名称" required>
+          </div>
+          <div class="col-12">
+            <label class="form-label required">负责人</label>
+            <div class="crm-person-picker" data-source-url="{{ url_for('api_users_search') }}">
+              <input type="hidden" name="owner_user_id" class="crm-person-picker-id" value="">
+              <input type="hidden" name="owner" class="crm-person-picker-value" value="">
+              <div class="position-relative">
+                <input type="text" class="form-control crm-person-picker-input" placeholder="输入姓名或账号搜索" autocomplete="off" required>
+                <div class="list-group shadow-sm crm-person-picker-dropdown d-none"></div>
+              </div>
+            </div>
+          </div>
+          <div class="col-6">
+            <label class="form-label">电话</label>
+            <input name="phone" class="form-control" placeholder="客户联系电话">
+          </div>
+          <div class="col-6">
+            <label class="form-label">邮箱</label>
+            <input name="email" class="form-control" placeholder="客户联系邮箱">
+          </div>
+          <div class="col-md-4">
+            <label class="form-label">行业</label>
+            <input name="industry" class="form-control" placeholder="所属行业">
+          </div>
+          <div class="col-md-2">
+            <label class="form-label">级别</label>
+            <select name="level" class="form-select">
+              <option value="A">A级</option>
+              <option value="B">B级</option>
+              <option value="C">C级</option>
+            </select>
+          </div>
+          <div class="col-md-3">
+            <label class="form-label">分级</label>
+            <select name="tier" class="form-select">
+              {% for k, v in customer_tier_labels.items() %}
+              <option value="{{ k }}" {% if k == 'normal' %}selected{% endif %}>{{ v }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="col-md-3">
+            <label class="form-label">状态</label>
+            <select name="status" class="form-select">
+              {% for k, v in customer_status_labels.items() %}
+              <option value="{{ k }}" {% if k == 'potential' %}selected{% endif %}>{{ v }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="col-12">
+            <label class="form-label">标签</label>
+            <input name="tags" class="form-control" placeholder="标签（逗号分隔）">
+          </div>
+        </div>
+        <div class="modal-footer border-top bg-light">
+          <button type="button" class="btn btn-light" data-bs-dismiss="modal">取消</button>
+          <button type="submit" class="btn btn-primary">保存</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endif %}
+{% endblock %}

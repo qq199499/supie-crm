@@ -1,0 +1,100 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="crm-page-head">
+  <div class="crm-page-head-main">
+    <h4 class="crm-page-title">总览</h4>
+    <div class="crm-page-subtitle">从项目、业务和财务三个维度查看整体运行状态。</div>
+  </div>
+</div>
+
+<!-- 项目大盘 -->
+<div class="row g-4 mb-3">
+  <div class="col-md-3">
+    <a class="text-decoration-none d-block h-100" href="{{ url_for('project_manage') }}">
+      <div class="modern-card crm-summary-card h-100 mb-0 d-flex flex-column justify-content-center">
+        <div class="stat-title text-muted">全部项目</div>
+        <div class="stat-value text-main">{{ summary.project_count }}</div>
+      </div>
+    </a>
+  </div>
+  <div class="col-md-3">
+    <a class="text-decoration-none d-block h-100" href="{{ url_for('project_manage', status='not_started') }}">
+      <div class="modern-card crm-summary-card h-100 mb-0 d-flex flex-column justify-content-center">
+        <div class="stat-title text-muted">未开始</div>
+        <div class="stat-value text-main">{{ summary.not_started_count }}</div>
+      </div>
+    </a>
+  </div>
+  <div class="col-md-3">
+    <a class="text-decoration-none d-block h-100" href="{{ url_for('project_manage', status='in_progress') }}">
+      <div class="modern-card crm-summary-card h-100 mb-0 d-flex flex-column justify-content-center">
+        <div class="stat-title text-muted">进行中</div>
+        <div class="stat-value text-primary">{{ summary.in_progress_count }}</div>
+      </div>
+    </a>
+  </div>
+  <div class="col-md-3">
+    <a class="text-decoration-none d-block h-100" href="{{ url_for('project_manage', status='closed') }}">
+      <div class="modern-card crm-summary-card h-100 mb-0 d-flex flex-column justify-content-center">
+        <div class="stat-title text-muted">已完成</div>
+        <div class="stat-value text-success">{{ summary.closed_count }}</div>
+      </div>
+    </a>
+  </div>
+</div>
+
+<div class="row g-4 mb-3">
+  <!-- 业务大盘 -->
+  <div class="col-md-8">
+    <div class="modern-card crm-content-card h-100 mb-0">
+      <div class="crm-section-head">
+        <div class="crm-section-head-main">
+          <div class="crm-section-head-label text-uppercase small text-muted">经营概览</div>
+          <h5 class="crm-section-title">业务与财务概览</h5>
+        </div>
+      </div>
+      <div class="row g-4">
+        <div class="col-sm-4 border-end">
+          <div class="text-muted mb-2" style="font-size: 13px;">客户总数</div>
+          <div class="fs-3 fw-bold text-main">{{ crm_summary.customer_count }} <span class="fs-6 text-muted fw-normal">家</span></div>
+        </div>
+        <div class="col-sm-4 border-end">
+          <div class="text-muted mb-2" style="font-size: 13px;">商机总数</div>
+          <div class="fs-3 fw-bold text-main">{{ crm_summary.opportunity_count }} <span class="fs-6 text-muted fw-normal">个</span></div>
+        </div>
+        <div class="col-sm-4">
+          <div class="text-muted mb-2" style="font-size: 13px;">合同总数</div>
+          <div class="fs-3 fw-bold text-main">{{ crm_summary.contract_count }} <span class="fs-6 text-muted fw-normal">份</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 风险与异常 -->
+  <div class="col-md-4">
+    <div class="modern-card crm-side-card h-100 mb-0">
+      <div class="crm-section-head">
+        <div class="crm-section-head-main">
+          <div class="crm-section-head-label text-uppercase small text-muted">风险情报</div>
+          <h5 class="crm-section-title">异常看板</h5>
+        </div>
+      </div>
+      <div class="d-flex flex-column gap-3">
+        <a href="{{ url_for('project_manage', status='blocked') }}" class="text-decoration-none p-3 rounded d-flex justify-content-between align-items-center" style="background: var(--warning-soft, rgba(247, 186, 30, 0.1)); border: 1px solid rgba(247, 186, 30, 0.2);">
+          <span class="text-warning fw-medium"><i class="bi bi-pause-circle me-2"></i>项目暂停</span>
+          <span class="fs-5 fw-bold text-warning">{{ summary.blocked_count }}</span>
+        </a>
+        <a href="{{ url_for('approval_list') }}" class="text-decoration-none p-3 rounded d-flex justify-content-between align-items-center" style="background: var(--primary-soft, rgba(22, 119, 255, 0.1)); border: 1px solid rgba(22, 119, 255, 0.2);">
+          <span class="text-primary fw-medium"><i class="bi bi-clock-history me-2"></i>待审批数量</span>
+          <span class="fs-5 fw-bold text-primary">{{ crm_summary.pending_approval_count }}</span>
+        </a>
+        <a href="{{ url_for('receivable_list') }}" class="text-decoration-none p-3 rounded d-flex justify-content-between align-items-center" style="background: var(--danger-soft, rgba(245, 63, 63, 0.1)); border: 1px solid rgba(245, 63, 63, 0.2);">
+          <span class="text-danger fw-medium"><i class="bi bi-exclamation-octagon me-2"></i>逾期应收</span>
+          <span class="fs-5 fw-bold text-danger">{{ crm_summary.overdue_receivable_count }}</span>
+        </a>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

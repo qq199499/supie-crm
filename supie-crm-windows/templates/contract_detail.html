@@ -1,0 +1,357 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="contract-detail-page crm-detail-page">
+  <div class="crm-detail-header pb-3 mb-4 border-bottom">
+    <div class="crm-entity-head">
+      <div class="crm-entity-head-row d-flex flex-wrap align-items-start justify-content-between gap-3">
+        <div class="crm-entity-head-main d-flex gap-3">
+          <a href="{{ url_for('contract_list') }}" class="icon-btn crm-entity-back mt-1" title="返回"><i class="bi bi-arrow-left"></i></a>
+          <div>
+            <div class="d-flex align-items-center gap-2 flex-wrap">
+              <h4 class="crm-entity-title">{{ contract.contract_no }}</h4>
+              {% if contract.status == 'signed' %}
+                <span class="status-pill status-success"><i class="bi bi-check-circle-fill"></i>{{ contract_status_labels.get(contract.status, contract.status) }}</span>
+              {% elif contract.status == 'executing' %}
+                <span class="status-pill status-primary"><i class="bi bi-circle-fill"></i>{{ contract_status_labels.get(contract.status, contract.status) }}</span>
+              {% elif contract.status == 'closed' %}
+                <span class="status-pill status-success"><i class="bi bi-archive-fill"></i>{{ contract_status_labels.get(contract.status, contract.status) }}</span>
+              {% else %}
+                <span class="status-pill status-muted">{{ contract_status_labels.get(contract.status, contract.status) }}</span>
+              {% endif %}
+            </div>
+            <div class="crm-entity-subtitle mt-2 text-muted small">
+              客户：<a href="{{ url_for('customer_detail', customer_id=contract.customer_id) }}" class="text-decoration-none">{{ contract.customer_name }}</a>
+              · 币种：{{ contract.currency or "CNY" }}
+              {% if contract.owner %} · 合同负责人：{{ contract.owner }}{% endif %}
+            </div>
+          </div>
+        </div>
+        <div class="crm-detail-actions d-flex flex-wrap gap-2">
+          {% if can('receivable', 'view') %}
+          <a class="btn btn-light text-primary" href="{{ url_for('receivable_list', contract_id=contract.id) }}"><i class="bi bi-cash-coin me-1"></i>本合同回款</a>
+          {% endif %}
+          {% if can('invoice', 'view') or can('receivable', 'manage') %}
+          <a class="btn btn-light text-primary" href="{{ url_for('invoice_list', contract_id=contract.id) }}"><i class="bi bi-receipt me-1"></i>本合同开票</a>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  {% set sm = summary_metrics if summary_metrics is defined and summary_metrics else {} %}
+  {% set contract_amount = metrics.contract_amount %}
+  {% set receive_pct = metrics.receive_pct %}
+  {% set invoice_pct = metrics.invoice_pct %}
+  {% set sum_received = metrics.sum_received %}
+  {% set sum_invoice = metrics.sum_invoice %}
+  {% set planned_due = metrics.planned_due %}
+  {% set actual_due = metrics.actual_due %}
+  {% set overdue_receivable_count = sm.get("overdue_receivable_count", metrics.td_k01_rows|length) %}
+  {% set pending_invoice_count = sm.get("pending_invoice_count", metrics.td_k02_rows|length) %}
+  {% set outstanding_receivable = sm.get("outstanding_receivable_amount", metrics.outstanding_receivable_amount) %}
+  {% set outstanding_invoice = sm.get("outstanding_invoice_amount", metrics.outstanding_invoice_amount) %}
+  {% set compliance_ratio = sm.get("compliance_ratio", ((actual_due / planned_due) if planned_due > 0 else None)) %}
+  {% set next_receivable_plan = sm.get("next_receivable_plan", metrics.next_receivable_plan) %}
+<div class="crm-detail-body">
+  <ul class="nav nav-tabs crm-contract-detail-tabs mb-4 border-0 gap-3" role="tablist" data-crm-tab-nav="contract">
+    <li class="nav-item">
+      <button class="nav-link crm-contract-detail-tab active" data-bs-toggle="tab" data-bs-target="#tab-overview" type="button">
+        <span class="crm-contract-detail-tab-title">合同概览</span>
+        <span class="crm-contract-detail-tab-meta">合同金额 ¥ {{ "%.0f"|format(contract_amount) }} · 回款 {{ "%.0f"|format(receive_pct * 100) }}% · 开票 {{ "%.0f"|format(invoice_pct * 100) }}%</span>
+      </button>
+    </li>
+    <li class="nav-item">
+      <button class="nav-link crm-contract-detail-tab" data-bs-toggle="tab" data-bs-target="#tab-alerts" type="button">
+        <span class="crm-contract-detail-tab-title">履约提醒</span>
+        <span class="crm-contract-detail-tab-meta">逾期回款 {{ overdue_receivable_count }} · 待处理开票 {{ pending_invoice_count }}</span>
+      </button>
+    </li>
+  </ul>
+
+  <div class="tab-content">
+    <div class="tab-pane fade show active" id="tab-overview">
+      <div class="modern-card crm-content-card crm-detail-inline-card crm-contract-overview-card">
+        <div class="crm-contract-overview-strip">
+          <div class="crm-contract-overview-item">
+            <div class="crm-contract-overview-label">合同金额</div>
+            <div class="crm-contract-overview-value">¥ {{ "%.0f"|format(contract_amount) }}</div>
+          </div>
+          <div class="crm-contract-overview-item">
+            <div class="crm-contract-overview-label">合同状态</div>
+            <div class="crm-contract-overview-value">{{ contract_status_labels.get(contract.status, contract.status) }}</div>
+          </div>
+          <div class="crm-contract-overview-item">
+            <div class="crm-contract-overview-label">回款执行</div>
+            <div class="crm-contract-overview-value">{{ "%.0f"|format(receive_pct * 100) }}%</div>
+            <div class="crm-contract-overview-note">已回 ¥ {{ "%.0f"|format(sum_received) }} · 待回 ¥ {{ "%.0f"|format(outstanding_receivable) }}</div>
+          </div>
+          <div class="crm-contract-overview-item">
+            <div class="crm-contract-overview-label">开票执行</div>
+            <div class="crm-contract-overview-value">{{ "%.0f"|format(invoice_pct * 100) }}%</div>
+            <div class="crm-contract-overview-note">已开 ¥ {{ "%.0f"|format(sum_invoice) }} · 待开 ¥ {{ "%.0f"|format(outstanding_invoice) }}</div>
+          </div>
+          <div class="crm-contract-overview-item">
+            <div class="crm-contract-overview-label">履约健康</div>
+            <div class="crm-contract-overview-value {% if compliance_ratio is not none and compliance_ratio < 1 %}text-danger{% else %}text-main{% endif %}">
+              {% if compliance_ratio is not none %}{{ "%.0f"|format(compliance_ratio * 100) }}%{% else %}—{% endif %}
+            </div>
+            <div class="crm-contract-overview-note">签约 {{ contract.sign_date or "-" }} · 到期 {{ contract.end_date or "-" }}</div>
+          </div>
+          <div class="crm-contract-overview-item">
+            <div class="crm-contract-overview-label">下笔计划</div>
+            {% if next_receivable_plan %}
+            <div class="crm-contract-overview-value">{{ next_receivable_plan.plan_date or "-" }}</div>
+            <div class="crm-contract-overview-note">待收 ¥ {{ "%.0f"|format(next_receivable_plan.remaining_amount or 0) }}</div>
+            {% else %}
+            <div class="crm-contract-overview-value">¥ {{ "%.0f"|format(planned_due) }}</div>
+            <div class="crm-contract-overview-note">应收计划 · 实回 ¥ {{ "%.0f"|format(actual_due) }}</div>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+
+      <div class="row g-4 crm-detail-section-row">
+        <div class="col-xl-8">
+          {% if can('contract', 'manage') %}
+          <div class="modern-card crm-content-card crm-detail-inline-card crm-detail-main-card">
+        <div class="crm-section-head">
+          <div class="crm-section-head-main">
+            <div class="crm-section-head-label">合同主数据</div>
+            <h5 class="crm-section-title">编辑合同主数据</h5>
+            <div class="crm-section-meta">合同编号、金额、归属关系和执行周期都在同一区块集中维护。</div>
+          </div>
+        </div>
+        <form method="post" action="{{ url_for('contract_detail', contract_id=contract.id) }}" class="row g-4">
+        <div class="col-md-6">
+          <label class="form-label required">合同编号</label>
+          <input name="contract_no" class="form-control" value="{{ contract.contract_no }}" required>
+        </div>
+        <div class="col-md-3">
+          <label class="form-label">合同金额</label>
+          <input type="number" step="0.01" name="amount" class="form-control" value="{{ contract.amount }}">
+        </div>
+        <div class="col-md-3">
+          <label class="form-label">币种</label>
+          <input name="currency" class="form-control" value="{{ contract.currency or 'CNY' }}">
+        </div>
+        <div class="col-md-4">
+          <label class="form-label">签约日期</label>
+          <input type="date" name="sign_date" class="form-control" value="{{ contract.sign_date or '' }}">
+        </div>
+        <div class="col-md-4">
+          <label class="form-label">到期日期</label>
+          <input type="date" name="end_date" class="form-control" value="{{ contract.end_date or '' }}">
+        </div>
+        <div class="col-md-4">
+          <label class="form-label">合同状态</label>
+          <select name="status" class="form-select">
+            {% for k, v in contract_status_labels.items() %}
+            <option value="{{ k }}" {% if contract.status == k %}selected{% endif %}>{{ v }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-md-4">
+          <label class="form-label">合同负责人</label>
+          <div class="crm-person-picker" data-source-url="{{ url_for('api_users_search') }}">
+            <input type="hidden" name="owner_user_id" class="crm-person-picker-id" value="">
+            <input type="hidden" name="owner" class="crm-person-picker-value" value="{{ contract.owner or '' }}">
+            <div class="position-relative">
+              <input type="text" class="form-control crm-person-picker-input" value="{{ contract.owner or '' }}" placeholder="输入姓名或账号搜索" autocomplete="off">
+              <div class="list-group shadow-sm crm-person-picker-dropdown d-none"></div>
+            </div>
+          </div>
+        </div>
+        <div class="col-md-4">
+          <label class="form-label">关联商机</label>
+          <select name="opportunity_id" class="form-select">
+            <option value="">暂不关联</option>
+            {% for op in opportunities %}
+            <option value="{{ op.id }}" {% if contract.opportunity_id == op.id %}selected{% endif %}>{{ op.title }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-md-4">
+          <label class="form-label">关联交付项目</label>
+          <select name="project_id" class="form-select">
+            <option value="">暂不关联</option>
+            {% for p in projects %}
+            <option value="{{ p.id }}" {% if contract.project_id == p.id %}selected{% endif %}>{{ p.name }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-12 mt-4 pt-3 border-top d-flex justify-content-between">
+          <div class="d-flex gap-2">
+            <button type="button" class="btn btn-outline-success" data-bs-toggle="modal" data-bs-target="#contractApprovalModal" {% if contract.status != 'draft' or pending_sign_approval %}disabled{% endif %}><i class="bi bi-shield-check me-1"></i>提签约审批</button>
+            <button type="submit" formmethod="post" formaction="{{ url_for('delete_contract', contract_id=contract.id) }}" class="btn btn-outline-danger" onclick="return confirm('确认彻底删除该合同吗？');"><i class="bi bi-trash me-1"></i>删除合同</button>
+          </div>
+          <button type="submit" class="btn btn-primary px-4">保存修改</button>
+        </div>
+        </form>
+      </div>
+          {% endif %}
+        </div>
+
+        <div class="col-xl-4">
+          <div class="modern-card crm-side-card crm-detail-inline-card crm-detail-quicklinks-card crm-contract-side-card">
+        <div class="crm-section-head">
+          <div class="crm-section-head-main">
+            <div class="crm-section-head-label">业务关联</div>
+            <h5 class="crm-section-title">关联实体跳转</h5>
+            <div class="crm-section-meta">把客户、商机、项目三条链路集中在同一处，避免在多个模块之间来回跳找。</div>
+          </div>
+        </div>
+        <div class="crm-contract-side-scroll">
+          <div class="crm-detail-link-list">
+            <a href="{{ url_for('customer_detail', customer_id=contract.customer_id) }}" class="crm-detail-link-card">
+              <div class="crm-detail-link-card-head">
+                <span>{{ contract.customer_name }}</span>
+                <i class="bi bi-chevron-right text-muted"></i>
+              </div>
+              <div class="crm-detail-link-card-meta">所属客户</div>
+            </a>
+            {% if contract.opportunity_id %}
+            <a href="{{ url_for('opportunity_detail', opportunity_id=contract.opportunity_id) }}" class="crm-detail-link-card">
+              <div class="crm-detail-link-card-head">
+                <span>{{ contract.opportunity_title }}</span>
+                <i class="bi bi-chevron-right text-muted"></i>
+              </div>
+              <div class="crm-detail-link-card-meta">关联商机</div>
+            </a>
+            {% else %}
+            <div class="crm-detail-link-card">
+              <div class="crm-detail-link-card-head"><span>未关联商机</span></div>
+              <div class="crm-detail-link-card-meta">可在编辑区中补充绑定</div>
+            </div>
+            {% endif %}
+            {% if contract.project_id %}
+            <a href="{{ url_for('project_detail', project_id=contract.project_id) }}" class="crm-detail-link-card">
+              <div class="crm-detail-link-card-head">
+                <span>{{ contract.project_name }}</span>
+                <i class="bi bi-chevron-right text-muted"></i>
+              </div>
+              <div class="crm-detail-link-card-meta">交付项目 · 项目经理 {{ contract.project_manager or "-" }}</div>
+            </a>
+            {% else %}
+            <div class="crm-detail-link-card">
+              <div class="crm-detail-link-card-head"><span>尚未关联交付项目</span></div>
+              <div class="crm-detail-link-card-meta">签约后可继续串联交付链路</div>
+            </div>
+            {% endif %}
+          </div>
+          </div>
+        </div>
+      </div>
+    </div>
+      </div>
+    </div>
+
+    <div class="tab-pane fade" id="tab-alerts">
+      {% if metrics.td_k01_rows or metrics.td_k02_rows or metrics.td_k03 %}
+      <div class="modern-card crm-content-card crm-detail-inline-card">
+        {% if metrics.td_k03 %}
+        <div class="alert alert-danger border shadow-sm mb-3 d-flex align-items-start gap-3">
+          <i class="bi bi-exclamation-octagon-fill fs-5 mt-1"></i>
+          <div>
+            <strong>TD-K03 合同执行偏差警告：</strong> 截至今日，应收计划与实际回款偏差率 {{ "%.1f"|format(metrics.deviation_pct * 100) }}%，已超过系统设定的健康阈值（{{ "%.0f"|format(contract_deviation_threshold_pct * 100) }}%）。请立即介入处理。
+          </div>
+        </div>
+        {% endif %}
+
+        {% if metrics.td_k01_rows %}
+        <div class="alert alert-warning border shadow-sm mb-3 d-flex align-items-start gap-3">
+          <i class="bi bi-clock-history fs-5 mt-1 text-warning"></i>
+          <div>
+            <strong>TD-K01 回款计划逾期：</strong> 以下计划日已到期，仍有未核销金额，请及时跟进客户或登记回款：
+            <ul class="mb-0 mt-2 ps-3 small">
+              {% for r in metrics.td_k01_rows %}
+              <li>计划日期：{{ r.plan_date }} <span class="mx-2">|</span> 计划金额：¥ {{ r.plan_amount }} <span class="mx-2">|</span> 已回金额：¥ {{ r.actual_amount or 0 }}</li>
+              {% endfor %}
+            </ul>
+          </div>
+        </div>
+        {% endif %}
+
+        {% if metrics.td_k02_rows %}
+        <div class="alert alert-info border shadow-sm mb-0 d-flex align-items-start gap-3">
+          <i class="bi bi-receipt fs-5 mt-1 text-info"></i>
+          <div>
+            <strong>TD-K02 开票待处理：</strong> 存在以下处于「待开具」状态的开票申请，请财务尽快处理：
+            <ul class="mb-0 mt-2 ps-3 small">
+              {% for i in metrics.td_k02_rows %}
+              <li>流水号：{{ i.invoice_no }} <span class="mx-2">|</span> 申请金额：¥ {{ i.amount }} <span class="mx-2">|</span> 申请日期：{{ i.invoice_date }}</li>
+              {% endfor %}
+            </ul>
+          </div>
+        </div>
+        {% endif %}
+      </div>
+      {% else %}
+      <div class="modern-card crm-content-card">
+        <div class="crm-empty-state empty-state py-5">
+          <i class="bi bi-shield-check fs-1 text-success opacity-50 mb-3 d-block"></i>
+          <div>当前没有需要处理的履约提醒</div>
+        </div>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+</div>
+{% if contract.status == 'draft' and not pending_sign_approval %}
+<div class="modal fade" id="contractApprovalModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-centered">
+    <div class="modal-content entity-modal crm-approval-modal">
+      <div class="modal-header border-bottom">
+        <div>
+          <h5 class="modal-title fs-6 fw-bold">提交签约审批</h5>
+          <div class="text-muted small">从审批池中选择审批人，并补充签约说明</div>
+        </div>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <form method="post" action="{{ url_for('submit_contract_sign_approval', contract_id=contract.id) }}">
+        <div class="modal-body p-4">
+          <div class="crm-approval-summary-grid mb-4">
+            <div class="crm-approval-summary-item">
+              <div class="crm-note">合同编号</div>
+              <div class="fw-semibold text-main">{{ contract.contract_no }}</div>
+            </div>
+            <div class="crm-approval-summary-item">
+              <div class="crm-note">客户名称</div>
+              <div class="fw-semibold text-main">{{ contract.customer_name }}</div>
+            </div>
+            <div class="crm-approval-summary-item">
+              <div class="crm-note">合同金额</div>
+              <div class="fw-semibold text-main">{{ contract.currency or 'CNY' }} {{ contract.amount }}</div>
+            </div>
+            <div class="crm-approval-summary-item">
+              <div class="crm-note">当前状态</div>
+              <div class="fw-semibold text-main">{{ contract_status_labels.get(contract.status, contract.status) }}</div>
+            </div>
+          </div>
+          <div class="mb-4">
+            <label class="form-label required">审批人</label>
+            <div class="crm-person-picker" data-person-options='{{ approval_candidates|tojson }}'>
+              <input type="hidden" name="approver_user_id" class="crm-person-picker-id" value="">
+              <input type="hidden" name="approver" class="crm-person-picker-value" value="">
+              <div class="position-relative">
+                <input type="text" class="form-control crm-person-picker-input" placeholder="输入姓名或账号搜索审批人" autocomplete="off" required>
+                <div class="list-group shadow-sm crm-person-picker-dropdown d-none"></div>
+              </div>
+            </div>
+          </div>
+          <div>
+            <label class="form-label">说明情况</label>
+            <textarea name="apply_note" class="form-control" rows="4" placeholder="请说明签约背景、合同要点和需要审批关注的内容。"></textarea>
+          </div>
+        </div>
+        <div class="modal-footer border-top bg-light">
+          <button type="button" class="btn btn-light" data-bs-dismiss="modal">取消</button>
+          <button type="submit" class="btn btn-success px-4">提交审批</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endif %}
+{% endblock %}
